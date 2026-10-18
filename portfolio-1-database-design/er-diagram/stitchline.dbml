@@ -1,0 +1,165 @@
+// StitchLine Uniforms & Embroidery — Logical ER model (crow's foot)
+// Source for erd-logical.png. Paste into https://dbdiagram.io to edit.
+
+Project StitchLine {
+  database_type: 'PostgreSQL'
+  Note: 'Portfolio 1 — Database Design and Modelling'
+}
+
+// ---------- Customers (supertype / subtype) ----------
+Table customer {
+  customer_id int [pk, increment]
+  customer_type varchar(10) [not null, note: 'school | individual']
+  phone varchar(20) [not null, unique]
+  email varchar(120)
+  address text
+  created_at timestamptz [not null]
+}
+
+Table school {
+  customer_id int [pk, ref: - customer.customer_id]
+  school_name varchar(150) [not null, unique]
+  contact_person varchar(100) [not null]
+  contact_phone varchar(20)
+}
+
+Table individual_customer {
+  customer_id int [pk, ref: - customer.customer_id]
+  first_name varchar(60) [not null]
+  last_name varchar(60) [not null]
+}
+
+Table customer_measurement {
+  customer_id int [pk, ref: > individual_customer.customer_id]
+  measure_name varchar(40) [pk]
+  value_cm numeric(5,1) [not null]
+  recorded_at date [not null]
+}
+
+// ---------- Staff ----------
+Table staff {
+  staff_id int [pk, increment]
+  full_name varchar(100) [not null]
+  role varchar(20) [not null]
+  email varchar(120) [not null, unique]
+  is_active boolean [not null]
+}
+
+// ---------- Products & materials ----------
+Table supplier {
+  supplier_id int [pk, increment]
+  name varchar(120) [not null, unique]
+  phone varchar(20)
+}
+
+Table product {
+  product_id int [pk, increment]
+  name varchar(100) [not null, unique]
+  category varchar(20) [not null]
+}
+
+Table product_variant {
+  variant_id int [pk, increment]
+  product_id int [not null, ref: > product.product_id]
+  size varchar(10) [not null]
+  colour varchar(30) [not null]
+  list_price numeric(12,2) [not null]
+  indexes {
+    (product_id, size, colour) [unique]
+  }
+}
+
+Table material {
+  material_id int [pk, increment]
+  supplier_id int [ref: > supplier.supplier_id]
+  name varchar(100) [not null, unique]
+  unit varchar(10) [not null]
+  stock_qty numeric(10,2) [not null]
+  reorder_level numeric(10,2) [not null]
+}
+
+Table product_material {
+  variant_id int [pk, ref: > product_variant.variant_id]
+  material_id int [pk, ref: > material.material_id]
+  qty_per_unit numeric(8,3) [not null]
+}
+
+// ---------- Designs ----------
+Table embroidery_design {
+  design_id int [pk, increment]
+  customer_id int [ref: > customer.customer_id, note: 'NULL = in-house design']
+  name varchar(100) [not null]
+  file_url text [not null]
+  stitch_count int
+}
+
+// ---------- Orders ----------
+Table sales_order {
+  order_id int [pk, increment]
+  order_number varchar(20) [not null, unique]
+  customer_id int [not null, ref: > customer.customer_id]
+  taken_by int [not null, ref: > staff.staff_id]
+  order_date date [not null]
+  due_date date [not null]
+  status varchar(12) [not null]
+  notes text
+}
+
+Table order_item {
+  order_id int [pk, ref: > sales_order.order_id]
+  line_no smallint [pk]
+  variant_id int [not null, ref: > product_variant.variant_id]
+  quantity int [not null]
+  unit_price numeric(12,2) [not null, note: 'price at time of order']
+}
+
+Table order_item_design {
+  order_id int [pk]
+  line_no smallint [pk]
+  design_id int [pk, ref: > embroidery_design.design_id]
+  placement varchar(15) [pk]
+  custom_text varchar(60)
+  thread_colour varchar(30) [not null]
+}
+
+Ref: order_item_design.(order_id, line_no) > order_item.(order_id, line_no)
+
+Table order_stage_history {
+  history_id int [pk, increment]
+  order_id int [not null, ref: > sales_order.order_id]
+  from_stage varchar(12)
+  to_stage varchar(12) [not null]
+  changed_by int [not null, ref: > staff.staff_id]
+  changed_at timestamptz [not null]
+}
+
+// ---------- Billing ----------
+Table invoice {
+  invoice_id int [pk, increment]
+  invoice_number varchar(20) [not null, unique]
+  order_id int [not null, unique, ref: - sales_order.order_id]
+  issue_date date [not null]
+  due_date date [not null]
+  total_amount numeric(12,2) [not null]
+}
+
+Table payment {
+  payment_id int [pk, increment]
+  invoice_id int [not null, ref: > invoice.invoice_id]
+  amount numeric(12,2) [not null]
+  method varchar(15) [not null]
+  reference varchar(50)
+  paid_at timestamptz [not null]
+  received_by int [not null, ref: > staff.staff_id]
+}
+
+// ---------- Stock ledger ----------
+Table stock_movement {
+  movement_id int [pk, increment]
+  material_id int [not null, ref: > material.material_id]
+  order_id int [ref: > sales_order.order_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  change_qty numeric(10,2) [not null]
+  reason varchar(12) [not null]
+  moved_at timestamptz [not null]
+}

@@ -1,0 +1,134 @@
+// StitchLine — Conceptual ER diagram (Chen notation)
+// Render: dot -Tsvg stitchline-conceptual.dot -o erd-conceptual.svg
+//
+// Legend
+//   Rectangle          = entity          Double rectangle  = weak entity
+//   Diamond            = relationship    Double diamond    = identifying relationship
+//   Ellipse            = relationship attribute
+//   Triangle (ISA)     = specialisation  (d = disjoint, double line = total)
+//   Double line        = total participation; single line = partial participation
+
+graph StitchLine {
+  graph [rankdir=LR, splines=true, nodesep=0.45, ranksep=0.7, fontname="Helvetica",
+         label="StitchLine Uniforms & Embroidery — Conceptual ER Model (Chen notation)",
+         labelloc=t, fontsize=20, pad=0.4];
+  node  [fontname="Helvetica", fontsize=12, style=filled, fillcolor="#ffffff", color="#1f3b57", penwidth=1.4];
+  edge  [fontname="Helvetica", fontsize=11, color="#1f3b57", penwidth=1.2];
+
+  // ---------- Entities ----------
+  node [shape=box];
+  Customer; School; Individual [label="Individual\nCustomer"]; Staff; Supplier; Product;
+  Variant [label="Product\nVariant"]; Material; Design [label="Embroidery\nDesign"];
+  Order [label="Sales\nOrder"]; Invoice; Payment; StageChange [label="Stage\nChange"];
+  StockMovement [label="Stock\nMovement"];
+
+  node [shape=box, peripheries=2];
+  Measurement [label="Customer\nMeasurement"]; OrderItem [label="Order\nItem"];
+
+  // ---------- Specialisation ----------
+  ISA [shape=invtriangle, label="d", peripheries=1, fillcolor="#eef3f8", width=0.6, height=0.5];
+
+  // ---------- Relationships ----------
+  node [shape=diamond, peripheries=1, fillcolor="#eef3f8", fontsize=10, width=1.1, height=0.7];
+  r_places   [label="places"];
+  r_takes    [label="takes"];
+  r_owns     [label="owns"];
+  r_hasvar   [label="has"];
+  r_supplies [label="supplies"];
+  r_uses     [label="uses"];
+  r_ordered  [label="ordered\nas"];
+  r_decor    [label="decorated\nwith"];
+  r_billed   [label="billed\nby"];
+  r_settled  [label="settled\nby"];
+  r_receives [label="receives"];
+  r_tracks   [label="tracks"];
+  r_moves    [label="records"];
+  r_affects  [label="affects"];
+  r_consumes [label="consumes"];
+
+  node [shape=diamond, peripheries=2];
+  r_measured [label="has"];
+  r_contains [label="contains"];
+
+  // ---------- Relationship attributes ----------
+  node [shape=ellipse, peripheries=1, fillcolor="#ffffff", fontsize=10, width=0.9, height=0.4];
+  a_qty       [label="qty_per_unit"];
+  a_placement [label=<<u>placement</u>>];
+  a_text      [label="custom_text"];
+  a_thread    [label="thread_colour"];
+
+  // Total participation = double line
+  edge [color="#1f3b57:invis:#1f3b57"]; // used selectively below
+  edge [color="#1f3b57"];
+
+  // ISA
+  Customer -- ISA [color="#1f3b57:invis:#1f3b57"];
+  ISA -- School;
+  ISA -- Individual;
+
+  // Individual has Measurement (identifying)
+  Individual -- r_measured [label="1"];
+  r_measured -- Measurement [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // Customer places Order
+  Customer -- r_places [label="1"];
+  r_places -- Order [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // Staff takes Order
+  Staff -- r_takes [label="1"];
+  r_takes -- Order [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // Customer owns Design
+  Customer -- r_owns [label="1"];
+  r_owns -- Design [label="N"];
+
+  // Order contains OrderItem (identifying)
+  Order -- r_contains [label="1", color="#1f3b57:invis:#1f3b57"];
+  r_contains -- OrderItem [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // Product has Variant
+  Product -- r_hasvar [label="1", color="#1f3b57:invis:#1f3b57"];
+  r_hasvar -- Variant [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // Variant ordered as OrderItem
+  Variant -- r_ordered [label="1"];
+  r_ordered -- OrderItem [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // OrderItem decorated with Design  (M:N with attributes)
+  OrderItem -- r_decor [label="M"];
+  r_decor -- Design [label="N"];
+  r_decor -- a_placement; r_decor -- a_text; r_decor -- a_thread;
+
+  // Variant uses Material  (M:N bill of materials)
+  Variant -- r_uses [label="M"];
+  r_uses -- Material [label="N"];
+  r_uses -- a_qty;
+
+  // Supplier supplies Material
+  Supplier -- r_supplies [label="1"];
+  r_supplies -- Material [label="N"];
+
+  // Order billed by Invoice  (1:1)
+  Order -- r_billed [label="1"];
+  r_billed -- Invoice [label="1", color="#1f3b57:invis:#1f3b57"];
+
+  // Invoice settled by Payment
+  Invoice -- r_settled [label="1"];
+  r_settled -- Payment [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // Staff receives Payment
+  Staff -- r_receives [label="1"];
+  r_receives -- Payment [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // Order stage changes (audit trail)
+  Order -- r_tracks [label="1"];
+  r_tracks -- StageChange [label="N", color="#1f3b57:invis:#1f3b57"];
+  Staff -- r_moves [label="1"];
+  r_moves -- StageChange [label="N", color="#1f3b57:invis:#1f3b57"];
+
+  // Stock ledger
+  Material -- r_affects [label="1"];
+  r_affects -- StockMovement [label="N", color="#1f3b57:invis:#1f3b57"];
+  Order -- r_consumes [label="1"];
+  r_consumes -- StockMovement [label="N"];
+}
