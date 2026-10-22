@@ -18,7 +18,6 @@
 | `normalisation.md` | Full derivation from UNF to BCNF |
 | `test-results/` | Captured output of `verify.sql` and `constraint-tests.sql` |
 | `screenshots/` | Screenshots of the schema and test runs |
-| `data-generator/` | Large-volume data generator *(added in Portfolio 2)* |
 
 ---
 
@@ -230,7 +229,7 @@ Each constraint enforces a real business rule. The test script attempts to break
 
 "Payments must not exceed the invoice total" compares a new row with the *sum of other rows*. A `CHECK` constraint can only see the row being written, so the rule is enforced with a `BEFORE INSERT OR UPDATE` trigger.
 
-The trigger has a known gap. Two payments recorded at the same instant can each read the old balance and both pass. That race condition is demonstrated and fixed in **Portfolio 3**.
+The trigger has a known gap. Two payments recorded at the same instant can each read the old balance and both pass. Portfolio 2 replaced this trigger with a stored `amount_paid` column and a single-row `CHECK`, and Portfolio 3 tests it under concurrent payments.
 
 ### What the schema does not enforce
 

@@ -2,6 +2,15 @@
 
 Progress log for the portfolio. Newest entries first.
 
+## 2026-11-15 — Portfolio 2: Query Processing and Optimisation
+
+- Seeded data generator: 11 years of history, ~100,000 orders
+- Seven business queries plus three rewritten versions
+- Benchmark runner capturing `EXPLAIN (ANALYZE, BUFFERS)` plans and median timings
+- Round 1: six indexes, including two partial indexes
+- Round 2: stored invoice balance (overpayment trigger replaced by `CHECK`) and a materialised monthly sales summary
+- Write-overhead and storage measurements; performance analysis
+
 ## 2026-11-15 — Portfolio 1: Database Design and Modelling
 
 - Case study selected: StitchLine Uniforms & Embroidery
