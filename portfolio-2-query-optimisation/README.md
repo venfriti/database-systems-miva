@@ -142,19 +142,22 @@ HashAggregate  (rows=9,675)  ← groups ALL 139,905 payment rows
 
 To know which invoices have a balance above zero, the view must first sum *every* invoice's payments. No index can avoid that, because the filter (`balance > 0`) applies to a value that only exists after aggregation. Adding the indexes did not change this plan.
 
-**Redesign:** store `amount_paid` on the invoice, maintained by a trigger on `payment`. Add a **partial index** on `due_date` covering only unpaid invoices. The new plan reads the first 50 rows of that index and stops:
+**Redesign:** store `amount_paid` on the invoice, maintained by a trigger on `payment`. Add a **partial index** on `due_date` covering only unpaid invoices. The new plan reads the unpaid invoices in `due_date` order and stops after 52 rows:
 
 ```
 Limit (rows=50)
-  -> Nested Loop
-       -> Index Scan using idx_invoice_outstanding on invoice   (rows=50)
+  -> Incremental Sort   (Presorted Key: due_date)
+       -> Nested Loop
+            -> Index Scan using idx_invoice_outstanding on invoice   (rows=52)
 ```
+
+Both queries end with `invoice_number` as a tie-breaker, so invoices due on the same day always come back in the same order. The index only supplies the `due_date` order, so the planner adds an **Incremental Sort**: it sorts just the invoices that share a due date, and reads two rows past the 50th to finish the last group.
 
 This reverses a Portfolio 1 decision, on purpose. Portfolio 1 said the balance should be computed, not stored, "unless performance requires it", and this is the measured case where it does.
 
 The redesign also had a side benefit. Overpayment was previously policed by a trigger that summed rows. It is now a one-row `CHECK (amount_paid <= total_amount)`, and the trigger was dropped. Portfolio 1 noted the old trigger could be beaten by two simultaneous payments. The new design closes that gap, because the `UPDATE … SET amount_paid = amount_paid + x` takes a row lock. Portfolio 3 tests this.
 
-**One estimation quirk.** The planner estimated 32,218 unpaid invoices; the true number is about 9,700. PostgreSQL has no statistics for a comparison *between two columns* (`amount_paid < total_amount`), so it falls back to a default guess of one third. Here it does no harm, because `LIMIT 50` stops early. Without the `LIMIT`, it could push the planner towards a worse plan.
+**One estimation quirk.** The planner estimated 32,217 unpaid invoices; the true number is about 9,700. PostgreSQL has no statistics for a comparison *between two columns* (`amount_paid < total_amount`), so it falls back to a default guess of one third. Here it does no harm, because `LIMIT 50` stops early. Without the `LIMIT`, it could push the planner towards a worse plan.
 
 ### Q3 — Partial index for a small, hot subset
 

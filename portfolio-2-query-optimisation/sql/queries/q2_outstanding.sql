@@ -12,5 +12,5 @@ FROM v_invoice_balance b
 JOIN customer c ON c.customer_id = b.customer_id
 WHERE b.balance > 0
   AND b.due_date < DATE '2026-11-15'
-ORDER BY days_overdue DESC
+ORDER BY days_overdue DESC, b.invoice_number
 LIMIT 50

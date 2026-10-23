@@ -13,5 +13,5 @@ JOIN sales_order o ON o.order_id    = i.order_id
 JOIN customer c    ON c.customer_id = o.customer_id
 WHERE i.amount_paid < i.total_amount
   AND i.due_date < DATE '2026-11-15'
-ORDER BY i.due_date
+ORDER BY i.due_date, i.invoice_number
 LIMIT 50
