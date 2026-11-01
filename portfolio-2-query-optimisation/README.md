@@ -15,7 +15,7 @@
 | `benchmark.py` | Runs each query with `EXPLAIN (ANALYZE, BUFFERS)`, then saves the plan and median time |
 | `report.py` | Builds `results/summary.md` and `results/before-after.png` |
 | `execution-plans/<phase>/` | Full plan for every query in every phase |
-| `results/` | Timings (CSV), summary table, chart, query output, write-overhead results |
+| `results/` | Timings (CSV), summary table, chart, query output, write-overhead results, generator output |
 | `screenshots/` | Screenshots of plans and results |
 
 ---
@@ -157,7 +157,7 @@ This reverses a Portfolio 1 decision, on purpose. Portfolio 1 said the balance s
 
 The redesign also had a side benefit. Overpayment was previously policed by a trigger that summed rows. It is now a one-row `CHECK (amount_paid <= total_amount)`, and the trigger was dropped. Portfolio 1 noted the old trigger could be beaten by two simultaneous payments. The new design closes that gap, because the `UPDATE … SET amount_paid = amount_paid + x` takes a row lock. Portfolio 3 tests this.
 
-**One estimation quirk.** The planner estimated 32,217 unpaid invoices; the true number is about 9,700. PostgreSQL has no statistics for a comparison *between two columns* (`amount_paid < total_amount`), so it falls back to a default guess of one third. Here it does no harm, because `LIMIT 50` stops early. Without the `LIMIT`, it could push the planner towards a worse plan.
+**One estimation quirk.** The planner estimated 32,218 unpaid invoices; the true number is about 9,700. PostgreSQL has no statistics for a comparison *between two columns* (`amount_paid < total_amount`), so it falls back to a default guess of one third. Here it does no harm, because `LIMIT 50` stops early. Without the `LIMIT`, it could push the planner towards a worse plan.
 
 ### Q3 — Partial index for a small, hot subset
 

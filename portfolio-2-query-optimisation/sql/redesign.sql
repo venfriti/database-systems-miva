@@ -15,7 +15,7 @@ SET search_path TO stitchline;
 -- ---------------------------------------------------------------------
 -- Portfolio 1 deliberately computed the balance in a view. With ~140,000
 -- payments, that view aggregates every payment on every request
--- (~330 ms), and the Outstanding tab is opened constantly.
+-- (~0.4–0.5 s), and the Outstanding tab is opened constantly.
 
 ALTER TABLE invoice
     ADD COLUMN amount_paid NUMERIC(12,2) NOT NULL DEFAULT 0;

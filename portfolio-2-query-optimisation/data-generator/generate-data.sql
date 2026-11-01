@@ -408,10 +408,12 @@ WHERE o.status NOT IN ('received', 'cancelled')
 GROUP BY pm.material_id, o.order_id, o.order_date
 HAVING round(SUM(oi.quantity * pm.qty_per_unit), 2) > 0;
 
--- Restock at the start of each month: 115% of that month's usage + 20 units
+-- Restock at the start of each month: that month's usage, rounded up to
+-- whole 10-unit lots. Stock therefore stays near its opening level instead
+-- of piling up over 11 years.
 INSERT INTO stock_movement (material_id, order_id, staff_id, change_qty, reason, moved_at)
 SELECT material_id, NULL, 1,
-       round(-SUM(change_qty) * 1.15 + 20, 2),
+       ceil(-SUM(change_qty) / 10) * 10,
        'purchase',
        date_trunc('month', moved_at)
 FROM stock_movement
