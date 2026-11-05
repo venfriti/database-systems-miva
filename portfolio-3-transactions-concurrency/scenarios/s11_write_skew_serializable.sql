@@ -1,0 +1,38 @@
+-- TITLE: Write skew — two staff take orders for the same school against its credit limit
+-- LEVEL: SERIALIZABLE
+-- EXPECT: Prevented. PostgreSQL's Serializable Snapshot Isolation spots the read/write dependency cycle and aborts B with SQLSTATE 40001. B retries, sees 2,000 headroom, and declines.
+-- RULE: unpaid balance + new order must not exceed the school's credit_limit.
+-- @SETUP
+UPDATE school SET credit_limit = (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice i JOIN sales_order o USING (order_id) WHERE o.customer_id = 94) + 5000 WHERE customer_id = 94;
+-- @A
+BEGIN ISOLATION LEVEL SERIALIZABLE;
+-- @A
+SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice i JOIN sales_order o USING (order_id) WHERE o.customer_id = 94) AS headroom FROM school WHERE customer_id = 94;
+-- @B
+BEGIN ISOLATION LEVEL SERIALIZABLE;
+-- @B
+SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice i JOIN sales_order o USING (order_id) WHERE o.customer_id = 94) AS headroom FROM school WHERE customer_id = 94;
+-- @A
+WITH o AS (INSERT INTO sales_order (order_number, customer_id, taken_by, due_date, notes)
+           VALUES ('SL-SKEW-A', 94, 2, CURRENT_DATE + 21, 'P3-TEST') RETURNING order_id)
+INSERT INTO invoice (invoice_number, order_id, due_date, total_amount)
+SELECT 'INV-SKEW-A', order_id, CURRENT_DATE + 30, 3000 FROM o;
+-- @B
+WITH o AS (INSERT INTO sales_order (order_number, customer_id, taken_by, due_date, notes)
+           VALUES ('SL-SKEW-B', 94, 6, CURRENT_DATE + 21, 'P3-TEST') RETURNING order_id)
+INSERT INTO invoice (invoice_number, order_id, due_date, total_amount)
+SELECT 'INV-SKEW-B', order_id, CURRENT_DATE + 30, 3000 FROM o;
+-- @A
+COMMIT;
+-- @B
+COMMIT;
+-- @B
+BEGIN ISOLATION LEVEL SERIALIZABLE;
+-- @B
+SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice i JOIN sales_order o USING (order_id) WHERE o.customer_id = 94) AS headroom_on_retry FROM school WHERE customer_id = 94;
+-- @B
+ROLLBACK;
+-- @CHECK
+SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice i JOIN sales_order o USING (order_id) WHERE o.customer_id = 94) AS final_headroom FROM school WHERE customer_id = 94;
+-- @TEARDOWN
+SELECT p3_reset();
