@@ -186,6 +186,15 @@ BEGIN
     SET stock_qty = (SELECT SUM(change_qty) FROM stock_movement s WHERE s.material_id = m.material_id)
     WHERE stock_qty <> (SELECT SUM(change_qty) FROM stock_movement s WHERE s.material_id = m.material_id);
 
+    -- credit limits back to the starting rule (scenarios s10–s12 change them)
+    UPDATE school s
+    SET credit_limit = ceil((COALESCE(b.outstanding, 0) + 20000) / 1000) * 1000
+    FROM (SELECT o.customer_id, SUM(i.total_amount - i.amount_paid) AS outstanding
+          FROM invoice i JOIN sales_order o USING (order_id)
+          GROUP BY o.customer_id) b
+    WHERE b.customer_id = s.customer_id
+      AND s.credit_limit <> ceil((COALESCE(b.outstanding, 0) + 20000) / 1000) * 1000;
+
     RETURN 'reset: ' || v_orders || ' test orders removed';
 END;
 $$ LANGUAGE plpgsql;
