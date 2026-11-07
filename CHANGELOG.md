@@ -2,6 +2,16 @@
 
 Progress log for the portfolio. Newest entries first.
 
+## 2026-11-07 — Portfolio 3: Transactions and Concurrency
+
+- `place_order()` (atomic order entry with ordered row locks), `move_order_stage()` (optimistic concurrency), school credit limits
+- COMMIT and ROLLBACK demos, including savepoints and non-transactional sequences
+- Two-session scenario runner and 18 reproducible scenarios: isolation anomalies, lost update and three fixes, write skew vs SERIALIZABLE, payment race (P1 vs P2 design), deadlock and lock ordering, optimistic stage moves
+
+## 2026-11-01 — Portfolio 2 data generator adjusted
+
+- Monthly restocking now matches usage, so material stock stays near its opening level instead of piling up over 11 years
+
 ## 2026-10-22 — Portfolio 2: Query Processing and Optimisation
 
 - Seeded data generator: 11 years of history, ~100,000 orders

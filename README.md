@@ -23,7 +23,7 @@ The full description is in [Portfolio 1](portfolio-1-database-design/README.md#1
 |---|---|---|---|
 | 1 | Database Design and Modelling | [`portfolio-1-database-design/`](portfolio-1-database-design/) | ✅ Complete |
 | 2 | Query Processing and Optimisation | [`portfolio-2-query-optimisation/`](portfolio-2-query-optimisation/) | ✅ Complete |
-| 3 | Transactions and Concurrency | [`portfolio-3-transactions-concurrency/`](portfolio-3-transactions-concurrency/) | ⏳ Not started |
+| 3 | Transactions and Concurrency | [`portfolio-3-transactions-concurrency/`](portfolio-3-transactions-concurrency/) | ✅ Complete |
 | 4 | NoSQL and Advanced Data Models | [`portfolio-4-nosql/`](portfolio-4-nosql/) | ⏳ Not started |
 | 5 | Distributed and Cloud Database Exercise | [`portfolio-5-distributed-cloud/`](portfolio-5-distributed-cloud/) | ⏳ Not started |
 | — | Final Documentation and Reflection | [`docs/`](docs/) | ⏳ Not started |
@@ -32,15 +32,15 @@ See [`CHANGELOG.md`](CHANGELOG.md) for what was added and when.
 
 ## Evidence Index
 
-| Evidence | Portfolio 1 | Portfolio 2 |
-|---|---|---|
-| SQL scripts | [`sql/`](portfolio-1-database-design/sql/) | [`sql/`](portfolio-2-query-optimisation/sql/) |
-| Database schema | [`sql/schema.sql`](portfolio-1-database-design/sql/schema.sql) | [`sql/indexes.sql`](portfolio-2-query-optimisation/sql/indexes.sql), [`sql/redesign.sql`](portfolio-2-query-optimisation/sql/redesign.sql) |
-| ER diagrams / models | [`er-diagram/`](portfolio-1-database-design/er-diagram/) | — |
-| Query execution plans & performance results | — | [`execution-plans/`](portfolio-2-query-optimisation/execution-plans/), [`results/`](portfolio-2-query-optimisation/results/) |
-| Test results | [`test-results/`](portfolio-1-database-design/test-results/) | [`results/`](portfolio-2-query-optimisation/results/) |
-| Screenshots | [`screenshots/`](portfolio-1-database-design/screenshots/) | [`screenshots/`](portfolio-2-query-optimisation/screenshots/) |
-| Technical documentation | [`README.md`](portfolio-1-database-design/README.md), [`normalisation.md`](portfolio-1-database-design/normalisation.md) | [`README.md`](portfolio-2-query-optimisation/README.md) |
+| Evidence | Portfolio 1 | Portfolio 2 | Portfolio 3 |
+|---|---|---|---|
+| SQL scripts | [`sql/`](portfolio-1-database-design/sql/) | [`sql/`](portfolio-2-query-optimisation/sql/) | [`sql/`](portfolio-3-transactions-concurrency/sql/), [`scenarios/`](portfolio-3-transactions-concurrency/scenarios/) |
+| Database schema | [`sql/schema.sql`](portfolio-1-database-design/sql/schema.sql) | [`sql/indexes.sql`](portfolio-2-query-optimisation/sql/indexes.sql), [`sql/redesign.sql`](portfolio-2-query-optimisation/sql/redesign.sql) | [`sql/00-setup.sql`](portfolio-3-transactions-concurrency/sql/00-setup.sql) |
+| ER diagrams / models | [`er-diagram/`](portfolio-1-database-design/er-diagram/) | — | — |
+| Query execution plans & performance results | — | [`execution-plans/`](portfolio-2-query-optimisation/execution-plans/), [`results/`](portfolio-2-query-optimisation/results/) | — |
+| Test results | [`test-results/`](portfolio-1-database-design/test-results/) | [`results/`](portfolio-2-query-optimisation/results/) | [`test-results/`](portfolio-3-transactions-concurrency/test-results/) |
+| Screenshots | [`screenshots/`](portfolio-1-database-design/screenshots/) | [`screenshots/`](portfolio-2-query-optimisation/screenshots/) | [`screenshots/`](portfolio-3-transactions-concurrency/screenshots/) |
+| Technical documentation | [`README.md`](portfolio-1-database-design/README.md), [`normalisation.md`](portfolio-1-database-design/normalisation.md) | [`README.md`](portfolio-2-query-optimisation/README.md) | [`README.md`](portfolio-3-transactions-concurrency/README.md) |
 
 *Further columns are added as each portfolio is completed.*
 
@@ -51,6 +51,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for what was added and when.
 | Relational DBMS | PostgreSQL 16 |
 | ER modelling | dbdiagram.io (DBML), Graphviz |
 | Benchmarking | Python 3 (standard library + matplotlib), `EXPLAIN ANALYZE` |
+| Concurrency testing | Python 3 + psycopg 3 (two-session scenario runner) |
 
 ## Quick Start
 
@@ -64,6 +65,10 @@ psql -d stitchline -f portfolio-1-database-design/sql/verify.sql
 psql -d stitchline -f portfolio-2-query-optimisation/data-generator/generate-data.sql
 psql -d stitchline -f portfolio-2-query-optimisation/sql/indexes.sql
 psql -d stitchline -f portfolio-2-query-optimisation/sql/redesign.sql
+
+# Portfolio 3: transactional routines, then the demos and scenarios
+psql -d stitchline -f portfolio-3-transactions-concurrency/sql/00-setup.sql
+python3 portfolio-3-transactions-concurrency/run_scenarios.py
 ```
 
 ## Repository Structure
