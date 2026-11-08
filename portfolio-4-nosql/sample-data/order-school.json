@@ -1,0 +1,154 @@
+{
+  "_id": 3,
+  "order_number": "SL-2026-0003",
+  "customer": {
+    "id": 3,
+    "type": "school",
+    "name": "St. Mary's College",
+    "phone": "+100000001003"
+  },
+  "taken_by": {
+    "id": 1,
+    "name": "Grace Thompson"
+  },
+  "order_date": {
+    "$date": "2026-10-01T00:00:00Z"
+  },
+  "due_date": {
+    "$date": "2026-11-20T00:00:00Z"
+  },
+  "status": "embroidery",
+  "items": [
+    {
+      "line": 1,
+      "product": {
+        "variant_id": 6,
+        "name": "Sports jersey",
+        "category": "sportswear",
+        "size": "M",
+        "colour": "Green"
+      },
+      "quantity": 45,
+      "unit_price": {
+        "$numberDecimal": "30.00"
+      },
+      "line_total": {
+        "$numberDecimal": "1350.00"
+      },
+      "embroidery": [
+        {
+          "design_id": 3,
+          "design": "St Mary's badge",
+          "placement": "left_chest",
+          "thread_colour": "Gold"
+        },
+        {
+          "design_id": 4,
+          "design": "Sports house star",
+          "placement": "back",
+          "thread_colour": "White",
+          "text": "ST MARY'S"
+        }
+      ]
+    },
+    {
+      "line": 2,
+      "product": {
+        "variant_id": 7,
+        "name": "Sports jersey",
+        "category": "sportswear",
+        "size": "L",
+        "colour": "Green"
+      },
+      "quantity": 35,
+      "unit_price": {
+        "$numberDecimal": "32.00"
+      },
+      "line_total": {
+        "$numberDecimal": "1120.00"
+      },
+      "embroidery": [
+        {
+          "design_id": 3,
+          "design": "St Mary's badge",
+          "placement": "left_chest",
+          "thread_colour": "Gold"
+        },
+        {
+          "design_id": 4,
+          "design": "Sports house star",
+          "placement": "back",
+          "thread_colour": "White",
+          "text": "ST MARY'S"
+        }
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "from": null,
+      "to": "received",
+      "by": "Grace Thompson",
+      "at": {
+        "$date": "2026-10-01T08:00:00Z"
+      }
+    },
+    {
+      "from": "received",
+      "to": "cutting",
+      "by": "Aisha Bello",
+      "at": {
+        "$date": "2026-10-06T07:10:00Z"
+      }
+    },
+    {
+      "from": "cutting",
+      "to": "sewing",
+      "by": "Aisha Bello",
+      "at": {
+        "$date": "2026-10-20T08:40:00Z"
+      }
+    },
+    {
+      "from": "sewing",
+      "to": "embroidery",
+      "by": "Liam Carter",
+      "at": {
+        "$date": "2026-11-09T12:00:00Z"
+      }
+    }
+  ],
+  "notes": "Sports day jerseys",
+  "total_units": 80,
+  "invoice": {
+    "number": "INV-2026-0003",
+    "issue_date": {
+      "$date": "2026-10-01T00:00:00Z"
+    },
+    "due_date": {
+      "$date": "2026-11-30T00:00:00Z"
+    },
+    "total": {
+      "$numberDecimal": "2470.00"
+    },
+    "paid": {
+      "$numberDecimal": "1200.00"
+    },
+    "balance": {
+      "$numberDecimal": "1270.00"
+    },
+    "payments": [
+      {
+        "amount": {
+          "$numberDecimal": "1200.00"
+        },
+        "method": "bank_transfer",
+        "reference": "TRF-93007",
+        "paid_at": {
+          "$date": "2026-10-01T10:00:00Z"
+        },
+        "received_by": "Mei Chen"
+      }
+    ]
+  }
+}

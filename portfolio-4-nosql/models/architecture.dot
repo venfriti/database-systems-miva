@@ -1,0 +1,19 @@
+// StitchLine — polyglot persistence. Render: dot -Tpng -Gdpi=150 architecture.dot -o architecture.png
+digraph A {
+  graph [rankdir=LR, fontname="Helvetica", nodesep=0.35, ranksep=0.9, pad=0.3,
+         label="StitchLine — which data lives where", labelloc=t, fontsize=16];
+  node  [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#52514e", fillcolor="#ffffff", penwidth=1.3];
+  edge  [color="#52514e", fontname="Helvetica", fontsize=10, fontcolor="#52514e"];
+
+  app [label="Order-management app\n(front desk · production · accounts · 3D studio)", fillcolor="#f4f4f1"];
+
+  pg [label=<<b>PostgreSQL</b>  — system of record<br/><font point-size="10">stock levels and ledger · invoices and payments ·<br/>credit limits · anything needing multi-row ACID rules<br/>(Portfolios 1–3)</font>>, fillcolor="#eef3f8", color="#2a78d6"];
+  mongo [label=<<b>MongoDB</b>  — document store<br/><font point-size="10">order documents for the order screen and 3D studio ·<br/>Ankara specs with style-specific measurements ·<br/>catalogue with flexible attributes</font>>, fillcolor="#eaf7f2", color="#1baf7a"];
+  redis [label=<<b>Redis</b>  — key-value, in memory<br/><font point-size="10">production-board cache · payment idempotency keys ·<br/>short-lived stock holds · counters</font>>, fillcolor="#fdf1ea", color="#eb6834"];
+
+  app -> pg    [label="writes: orders, payments,\nstock (transactions)"];
+  app -> mongo [label="reads: one document per order screen\nwrites: Ankara specs"];
+  app -> redis [label="hot reads, de-duplication,\natomic counters"];
+  pg -> mongo  [label="sync after commit\n(migrate.py, later CDC)", style=dashed];
+  pg -> redis  [label="cache load / refresh", style=dashed];
+}

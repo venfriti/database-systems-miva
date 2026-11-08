@@ -1,0 +1,68 @@
+{
+  "_id": "1:2026-11",
+  "material_id": 1,
+  "month": "2026-11",
+  "count": 50,
+  "net_change": {
+    "$numberDecimal": "1.41"
+  },
+  "movements": [
+    {
+      "qty": {
+        "$numberDecimal": "5140.00"
+      },
+      "reason": "purchase",
+      "at": {
+        "$date": "2026-10-31T23:00:00Z"
+      },
+      "staff_id": 1
+    },
+    {
+      "qty": {
+        "$numberDecimal": "-83.20"
+      },
+      "reason": "order_usage",
+      "at": {
+        "$date": "2026-11-01T07:00:00Z"
+      },
+      "staff_id": 15,
+      "order_id": 99767
+    },
+    {
+      "qty": {
+        "$numberDecimal": "-357.98"
+      },
+      "reason": "order_usage",
+      "at": {
+        "$date": "2026-11-01T07:00:00Z"
+      },
+      "staff_id": 9,
+      "order_id": 99756
+    },
+    {
+      "qty": {
+        "$numberDecimal": "-67.20"
+      },
+      "reason": "order_usage",
+      "at": {
+        "$date": "2026-11-02T07:00:00Z"
+      },
+      "staff_id": 15,
+      "order_id": 99783
+    },
+    {
+      "qty": {
+        "$numberDecimal": "-215.53"
+      },
+      "reason": "order_usage",
+      "at": {
+        "$date": "2026-11-02T07:00:00Z"
+      },
+      "staff_id": 15,
+      "order_id": 99775
+    },
+    {
+      "\u2026": "45 more movements"
+    }
+  ]
+}

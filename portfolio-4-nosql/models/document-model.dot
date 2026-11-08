@@ -1,0 +1,67 @@
+// StitchLine — MongoDB document model. Render: dot -Tpng -Gdpi=150 document-model.dot -o document-model.png
+digraph G {
+  graph [rankdir=LR, fontname="Helvetica", nodesep=0.5, ranksep=1.1, pad=0.3,
+         label="StitchLine — MongoDB document model (embedded = inside the box, dashed arrow = reference by id)", labelloc=t, fontsize=16];
+  node  [shape=plain, fontname="Helvetica", fontsize=11];
+  edge  [color="#52514e", style=dashed, arrowhead=vee, fontname="Helvetica", fontsize=10, fontcolor="#52514e"];
+
+  orders [label=<
+  <table border="1" cellborder="0" cellspacing="0" cellpadding="4" color="#2a78d6">
+   <tr><td bgcolor="#2a78d6" align="left"><font color="white"><b>orders</b>  (1 document per order)</font></td></tr>
+   <tr><td align="left">_id, order_number, order_date, due_date, status, total_units</td></tr>
+   <tr><td align="left" port="cust">customer { id, type, name, phone }  <i>extended reference</i></td></tr>
+   <tr><td align="left" port="staff">taken_by { id, name }</td></tr>
+   <tr><td align="left" bgcolor="#eef3f8">items [ { line, quantity, unit_price, line_total,</td></tr>
+   <tr><td align="left" bgcolor="#eef3f8" port="prod">     product { variant_id, name, category, size, colour },</td></tr>
+   <tr><td align="left" bgcolor="#eef3f8" port="des">     embroidery [ { design_id, design, placement, thread_colour, text } ] } ]</td></tr>
+   <tr><td align="left" bgcolor="#f4f4f1">stages [ { from, to, by, at } ]  <i>bounded: ≤ 7</i></td></tr>
+   <tr><td align="left" bgcolor="#eef3f8">invoice { number, issue_date, due_date, total, paid, balance,</td></tr>
+   <tr><td align="left" bgcolor="#eef3f8">     payments [ { amount, method, reference, paid_at, received_by } ] }</td></tr>
+   <tr><td align="left" bgcolor="#fdf1ea">custom_spec { style, fabric{…}, measurements{… per style}, options{…} }  <i>Ankara only</i></td></tr>
+  </table>>];
+
+  customers [label=<
+  <table border="1" cellborder="0" cellspacing="0" cellpadding="4" color="#1baf7a">
+   <tr><td bgcolor="#1baf7a" align="left" port="top"><font color="white"><b>customers</b>  (schools + individuals)</font></td></tr>
+   <tr><td align="left">_id, type: "school" | "individual", name, phone, email, address</td></tr>
+   <tr><td align="left">school only: contact { person, phone }, credit_limit</td></tr>
+   <tr><td align="left">individual only: first_name, last_name</td></tr>
+   <tr><td align="left" bgcolor="#eaf7f2">designs [ { design_id, name, file_url, stitch_count } ]</td></tr>
+   <tr><td align="left" bgcolor="#eaf7f2">measurements [ { profile, unit, taken_on, values { … } } ]</td></tr>
+  </table>>];
+
+  products [label=<
+  <table border="1" cellborder="0" cellspacing="0" cellpadding="4" color="#6250d6">
+   <tr><td bgcolor="#6250d6" align="left" port="top"><font color="white"><b>products</b></font></td></tr>
+   <tr><td align="left">_id, name, category</td></tr>
+   <tr><td align="left" bgcolor="#f0eefb">variants [ { variant_id, size, colour, list_price,</td></tr>
+   <tr><td align="left" bgcolor="#f0eefb" port="mat">     materials [ { material_id, name, qty_per_unit, unit } ] } ]</td></tr>
+  </table>>];
+
+  materials [label=<
+  <table border="1" cellborder="0" cellspacing="0" cellpadding="4" color="#eb6834">
+   <tr><td bgcolor="#eb6834" align="left" port="top"><font color="white"><b>materials</b></font></td></tr>
+   <tr><td align="left">_id, name, unit, stock_qty, reorder_level</td></tr>
+   <tr><td align="left">supplier { supplier_id, name, phone }</td></tr>
+  </table>>];
+
+  ledger [label=<
+  <table border="1" cellborder="0" cellspacing="0" cellpadding="4" color="#eb6834">
+   <tr><td bgcolor="#eb6834" align="left"><font color="white"><b>stock_ledger</b>  (bucket: 1 doc per material per month)</font></td></tr>
+   <tr><td align="left" port="m">_id "1:2026-11", material_id, month, count, net_change</td></tr>
+   <tr><td align="left" bgcolor="#fdf1ea">movements [ { qty, reason, at, staff_id, order_id } ]</td></tr>
+  </table>>];
+
+  staff [label=<
+  <table border="1" cellborder="0" cellspacing="0" cellpadding="4" color="#52514e">
+   <tr><td bgcolor="#52514e" align="left" port="top"><font color="white"><b>staff</b></font></td></tr>
+   <tr><td align="left">_id, name, role, email, active</td></tr>
+  </table>>];
+
+  orders:cust  -> customers:top [label="customer.id"];
+  orders:des   -> customers:top [label="design_id"];
+  orders:prod  -> products:top  [label="variant_id"];
+  orders:staff -> staff:top     [label="taken_by.id"];
+  products:mat -> materials:top [label="material_id"];
+  ledger:m     -> materials:top [label="material_id"];
+}

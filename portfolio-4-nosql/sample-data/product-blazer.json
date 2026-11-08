@@ -1,0 +1,475 @@
+{
+  "_id": 8,
+  "name": "Blazer",
+  "category": "uniform",
+  "variants": [
+    {
+      "variant_id": 100,
+      "size": "XS",
+      "colour": "Navy",
+      "list_price": {
+        "$numberDecimal": "51.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.530"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 101,
+      "size": "XS",
+      "colour": "Black",
+      "list_price": {
+        "$numberDecimal": "51.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.530"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 102,
+      "size": "XS",
+      "colour": "Maroon",
+      "list_price": {
+        "$numberDecimal": "51.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.530"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 103,
+      "size": "S",
+      "colour": "Navy",
+      "list_price": {
+        "$numberDecimal": "54.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.620"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 104,
+      "size": "S",
+      "colour": "Black",
+      "list_price": {
+        "$numberDecimal": "54.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.620"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 105,
+      "size": "S",
+      "colour": "Maroon",
+      "list_price": {
+        "$numberDecimal": "54.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.620"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 106,
+      "size": "M",
+      "colour": "Navy",
+      "list_price": {
+        "$numberDecimal": "60.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.800"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 107,
+      "size": "M",
+      "colour": "Black",
+      "list_price": {
+        "$numberDecimal": "60.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.800"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 108,
+      "size": "M",
+      "colour": "Maroon",
+      "list_price": {
+        "$numberDecimal": "60.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.800"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 109,
+      "size": "L",
+      "colour": "Navy",
+      "list_price": {
+        "$numberDecimal": "66.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.980"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 110,
+      "size": "L",
+      "colour": "Black",
+      "list_price": {
+        "$numberDecimal": "66.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.980"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 111,
+      "size": "L",
+      "colour": "Maroon",
+      "list_price": {
+        "$numberDecimal": "66.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "1.980"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 112,
+      "size": "XL",
+      "colour": "Navy",
+      "list_price": {
+        "$numberDecimal": "72.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "2.160"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 113,
+      "size": "XL",
+      "colour": "Black",
+      "list_price": {
+        "$numberDecimal": "72.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "2.160"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 114,
+      "size": "XL",
+      "colour": "Maroon",
+      "list_price": {
+        "$numberDecimal": "72.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "2.160"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 115,
+      "size": "XXL",
+      "colour": "Navy",
+      "list_price": {
+        "$numberDecimal": "78.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "2.340"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 116,
+      "size": "XXL",
+      "colour": "Black",
+      "list_price": {
+        "$numberDecimal": "78.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "2.340"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    },
+    {
+      "variant_id": 117,
+      "size": "XXL",
+      "colour": "Maroon",
+      "list_price": {
+        "$numberDecimal": "78.00"
+      },
+      "materials": [
+        {
+          "material_id": 8,
+          "name": "Blazer wool blend",
+          "qty_per_unit": {
+            "$numberDecimal": "2.340"
+          },
+          "unit": "metre"
+        },
+        {
+          "material_id": 7,
+          "name": "Buttons (pack of 100)",
+          "qty_per_unit": {
+            "$numberDecimal": "0.040"
+          },
+          "unit": "piece"
+        }
+      ]
+    }
+  ]
+}

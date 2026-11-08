@@ -1,0 +1,44 @@
+{
+  "_id": 4,
+  "type": "individual",
+  "phone": "+100000002001",
+  "created_at": {
+    "$date": "2026-11-15T08:39:00.175Z"
+  },
+  "email": "ngozi.a@mail.example",
+  "address": "7 Palm Close",
+  "name": "Ngozi Adeyemi",
+  "first_name": "Ngozi",
+  "last_name": "Adeyemi",
+  "measurements": [
+    {
+      "profile": "general",
+      "unit": "cm",
+      "taken_on": {
+        "$date": "2026-11-15T00:00:00Z"
+      },
+      "values": {
+        "bust": {
+          "$numberDecimal": "92.0"
+        },
+        "waist": {
+          "$numberDecimal": "74.0"
+        },
+        "hip": {
+          "$numberDecimal": "101.0"
+        },
+        "length": {
+          "$numberDecimal": "140.0"
+        }
+      }
+    }
+  ],
+  "designs": [
+    {
+      "design_id": 5,
+      "name": "Name monogram",
+      "file_url": "designs/monogram_na.dst",
+      "stitch_count": 1500
+    }
+  ]
+}

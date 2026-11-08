@@ -1,0 +1,32 @@
+{
+  "_id": 94,
+  "type": "school",
+  "phone": "+2000000087",
+  "created_at": {
+    "$date": "2020-03-05T23:00:00Z"
+  },
+  "email": "office87@school.example",
+  "address": "88 Church Street",
+  "name": "Bayside Primary School",
+  "contact": {
+    "person": "Dr. Moreno",
+    "phone": "+2100000087"
+  },
+  "credit_limit": {
+    "$numberDecimal": "83000.00"
+  },
+  "designs": [
+    {
+      "design_id": 88,
+      "name": "School crest",
+      "file_url": "designs/crest_94.dst",
+      "stitch_count": 6864
+    },
+    {
+      "design_id": 200,
+      "name": "Sports logo",
+      "file_url": "designs/sports_94.dst",
+      "stitch_count": 4059
+    }
+  ]
+}

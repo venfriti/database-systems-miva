@@ -1,0 +1,16 @@
+{
+  "_id": 1,
+  "name": "White poplin fabric",
+  "unit": "metre",
+  "stock_qty": {
+    "$numberDecimal": "1073.76"
+  },
+  "reorder_level": {
+    "$numberDecimal": "100.00"
+  },
+  "supplier": {
+    "supplier_id": 1,
+    "name": "Prime Textiles Ltd",
+    "phone": "+100000000001"
+  }
+}

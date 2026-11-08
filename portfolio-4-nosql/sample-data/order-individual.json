@@ -1,0 +1,116 @@
+{
+  "_id": 4,
+  "order_number": "SL-2026-0004",
+  "customer": {
+    "id": 4,
+    "type": "individual",
+    "name": "Ngozi Adeyemi",
+    "phone": "+100000002001"
+  },
+  "taken_by": {
+    "id": 2,
+    "name": "Daniel Mensah"
+  },
+  "order_date": {
+    "$date": "2026-10-20T00:00:00Z"
+  },
+  "due_date": {
+    "$date": "2026-11-10T00:00:00Z"
+  },
+  "status": "ready",
+  "items": [
+    {
+      "line": 1,
+      "product": {
+        "variant_id": 9,
+        "name": "Custom Ankara outfit",
+        "category": "ankara_custom",
+        "size": "CUSTOM",
+        "colour": "Multi"
+      },
+      "quantity": 1,
+      "unit_price": {
+        "$numberDecimal": "120.00"
+      },
+      "line_total": {
+        "$numberDecimal": "120.00"
+      },
+      "embroidery": [
+        {
+          "design_id": 5,
+          "design": "Name monogram",
+          "placement": "collar",
+          "thread_colour": "Gold",
+          "text": "NA"
+        }
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "from": null,
+      "to": "received",
+      "by": "Daniel Mensah",
+      "at": {
+        "$date": "2026-10-20T11:00:00Z"
+      }
+    },
+    {
+      "from": "received",
+      "to": "cutting",
+      "by": "Aisha Bello",
+      "at": {
+        "$date": "2026-10-22T08:00:00Z"
+      }
+    },
+    {
+      "from": "cutting",
+      "to": "sewing",
+      "by": "Aisha Bello",
+      "at": {
+        "$date": "2026-10-29T08:00:00Z"
+      }
+    },
+    {
+      "from": "sewing",
+      "to": "ready",
+      "by": "Liam Carter",
+      "at": {
+        "$date": "2026-11-07T16:00:00Z"
+      }
+    }
+  ],
+  "notes": "Wedding guest outfit",
+  "total_units": 1,
+  "invoice": {
+    "number": "INV-2026-0004",
+    "issue_date": {
+      "$date": "2026-10-20T00:00:00Z"
+    },
+    "due_date": {
+      "$date": "2026-11-10T00:00:00Z"
+    },
+    "total": {
+      "$numberDecimal": "120.00"
+    },
+    "paid": {
+      "$numberDecimal": "60.00"
+    },
+    "balance": {
+      "$numberDecimal": "60.00"
+    },
+    "payments": [
+      {
+        "amount": {
+          "$numberDecimal": "60.00"
+        },
+        "method": "cash",
+        "reference": null,
+        "paid_at": {
+          "$date": "2026-10-20T11:10:00Z"
+        },
+        "received_by": "Daniel Mensah"
+      }
+    ]
+  }
+}
