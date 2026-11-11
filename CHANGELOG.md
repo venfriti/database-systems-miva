@@ -2,6 +2,15 @@
 
 Progress log for the portfolio. Newest entries first.
 
+## 2026-11-11 — Portfolio 4: NoSQL and Advanced Data Models
+
+- MongoDB document model: 18 tables → 6 collections, with embed/reference decisions and patterns (polymorphic, extended reference, computed, bucket)
+- `setup.js` validators (including per-style Ankara specs and the overpayment rule) and indexes
+- `migrate.py` (PostgreSQL → MongoDB) and queries D1–D13, run on MongoDB 7.0 as a replica set and cross-checked against PostgreSQL
+- Redis key-value examples R1–R4: board cache, WATCH/MULTI, idempotency keys, Lua stock reservation
+- Suitability analysis and polyglot architecture
+- Portfolio 3: `p3_reset()` now also restores school credit limits
+
 ## 2026-11-07 — Portfolio 3: Transactions and Concurrency
 
 - `place_order()` (atomic order entry with ordered row locks), `move_order_stage()` (optimistic concurrency), school credit limits
