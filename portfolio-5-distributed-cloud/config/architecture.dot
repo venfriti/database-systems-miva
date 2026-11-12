@@ -1,0 +1,33 @@
+// StitchLine — recommended cloud deployment. Render: dot -Tpng -Gdpi=150 architecture.dot -o architecture.png
+digraph D {
+  graph [rankdir=LR, fontname="Helvetica", nodesep=0.35, ranksep=0.8, pad=0.3, compound=true,
+         label="StitchLine — recommended deployment (one cloud region, three availability zones)", labelloc=t, fontsize=16];
+  node  [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10.5, fillcolor="#ffffff", color="#52514e", penwidth=1.2];
+  edge  [fontname="Helvetica", fontsize=9.5, color="#52514e", fontcolor="#52514e"];
+
+  app [label="Order-management app\n(stateless, 2+ instances)", fillcolor="#f4f4f1"];
+  pool [label="connection pooler /\nproxy (e.g. PgBouncer)", fillcolor="#f4f4f1"];
+
+  subgraph cluster_pg {
+    label="Managed PostgreSQL (system of record)"; fontsize=12; fontname="Helvetica"; color="#2a78d6"; style="rounded";
+    p  [label=<<b>Primary</b><br/><font point-size="9">zone A · all writes</font>>, fillcolor="#eef3f8", color="#2a78d6"];
+    s1 [label=<<b>Standby 1</b><br/><font point-size="9">zone B · quorum member<br/>automatic failover target</font>>, fillcolor="#eef3f8", color="#2a78d6"];
+    s2 [label=<<b>Read replica</b><br/><font point-size="9">zone C · quorum member<br/>reports and month-end</font>>, fillcolor="#eef3f8", color="#2a78d6"];
+    p -> s1 [label="WAL"];
+    p -> s2 [label="WAL"];
+    q [shape=note, fontsize=9, label="synchronous_standby_names =\n'ANY 1 (standby1, replica)'\nevery commit is on 2 zones (RPO 0)\none standby may fail without\nblocking writes", fillcolor="#ffffff"];
+    s2 -> q [style=invis];
+  }
+  bk [label="Object storage\ncontinuous WAL archive + base backups\n(point-in-time recovery, 30 days)", shape=cylinder, fillcolor="#f4f4f1"];
+
+  subgraph cluster_m {
+    label="MongoDB Atlas replica set"; fontsize=12; fontname="Helvetica"; color="#1baf7a"; style="rounded";
+    m [label=<<b>3 members across zones</b><br/><font point-size="9">order documents · Ankara specs<br/>w: majority</font>>, fillcolor="#eaf7f2", color="#1baf7a"];
+  }
+  r [label=<<b>Redis</b> (managed)<br/><font point-size="9">board cache · idempotency keys</font>>, fillcolor="#fdf1ea", color="#eb6834"];
+
+  app -> pool -> p [label="read/write"];
+  pool -> s2 [label="read-only\nreports", style=dashed];
+  p -> bk [style=dotted];
+  app -> m; app -> r;
+}
