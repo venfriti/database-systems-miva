@@ -2,6 +2,13 @@
 
 Progress log for the portfolio. Newest entries first.
 
+## 2026-11-14 — Portfolio 5: Distributed and Cloud Database Exercise
+
+- `cluster.sh`: 5-server PostgreSQL cluster (primary, 2 streaming replicas with slots, 2 shards), run in a Linux container
+- Replication demos R1–R7: propagation delay, read-only replicas, stale reads, synchronous vs quorum commit, crash failover with `pg_rewind` rejoin
+- Range partitioning by year (pruning, archiving) and hash sharding with `postgres_fdw` (single-shard, scatter-gather, pushdown, two-phase commit)
+- Recommended cloud architecture; CAP/PACELC by data type; the case for and against sharding
+
 ## 2026-11-11 — Portfolio 4: NoSQL and Advanced Data Models
 
 - MongoDB document model: 18 tables → 6 collections, with embed/reference decisions and patterns (polymorphic, extended reference, computed, bucket)
