@@ -2,6 +2,13 @@
 
 Progress log for the portfolio. Newest entries first.
 
+## 2026-11-15 — Test run: results and evidence
+
+- Every portfolio re-run from a fresh database: P1 verification and constraint tests, P2 generator, benchmark (3 phases), write overhead (2 × 9 runs) and report, P3 demos and all 18 scenarios, P4 MongoDB setup, migration, queries and Redis demo, P5 cluster, partitioning, sharding and replication demos
+- Outputs added: `test-results/`, P2 `execution-plans/` and `results/`, and screenshots for all five portfolios
+- Measured results written into the Portfolio 2–5 READMEs
+- Portfolio 5: `cluster.sh` keeps 256 MB of WAL (`wal_keep_size`) and `replication_demo.py` checkpoints the new primary before `pg_rewind`, so the old primary rejoins reliably after failover
+
 ## 2026-11-14 — Portfolio 5: Distributed and Cloud Database Exercise
 
 - `cluster.sh`: 5-server PostgreSQL cluster (primary, 2 streaming replicas with slots, 2 shards), run in a Linux container

@@ -1,0 +1,18 @@
+SCENARIO s12_credit_check_row_lock
+Title : Fix for write skew at READ COMMITTED — place_order() locks the school row first
+Level : READ COMMITTED
+Expect: B's place_order() waits on A's lock on the school row. Once A commits, B's credit check sees A's new invoice and rejects the order. Same safety as SERIALIZABLE, with no retries.
+
+SETUP   UPDATE school SET credit_limit = (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice…
+
+   time     # S  statement  →  result
+  0.01s  [ 1] A  BEGIN;  →  BEGIN
+  0.16s  [ 2] A  SELECT place_order(94, 2, CURRENT_DATE + 21, '[{"variant_id": 2, "qua…  →  order_id=100018
+  0.34s  [ 3] B  BEGIN;  →  BEGIN
+  0.49s  [ 4] B  SELECT place_order(94, 6, CURRENT_DATE + 21, '[{"variant_id": 2, "qua…  →  ⏳ BLOCKED (waiting for a lock)
+  2.94s  [ 5] A  COMMIT;  →  COMMIT
+  3.10s  [ 4] B  ↳ UNBLOCKED after 2.61s → ERROR [23514] Credit limit exceeded: outstanding 65584.99 + order 3000.00 > limit 67584.99
+  3.10s  [ 6] B  ROLLBACK;  →  ROLLBACK
+
+CHECK   SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice i JOIN sal…
+        → final_headroom=2000.00

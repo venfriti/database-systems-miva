@@ -1,0 +1,19 @@
+SCENARIO s07_fix_select_for_update
+Title : Fix 1 — pessimistic locking with SELECT ... FOR UPDATE
+Level : READ COMMITTED
+Expect: B's read WAITS until A commits, then sees 20. The application sees 20 < 40 and refuses B's order. Stock stays correct.
+
+SETUP   UPDATE material SET stock_qty = 50 WHERE material_id = 4;
+
+   time     # S  statement  →  result
+  0.01s  [ 1] A  BEGIN;  →  BEGIN
+  0.16s  [ 2] A  SELECT stock_qty FROM material WHERE material_id = 4 FOR UPDATE;  →  stock_qty=50.00
+  0.31s  [ 3] B  BEGIN;  →  BEGIN
+  0.46s  [ 4] B  SELECT stock_qty FROM material WHERE material_id = 4 FOR UPDATE;  →  ⏳ BLOCKED (waiting for a lock)
+  2.91s  [ 5] A  UPDATE material SET stock_qty = 20 WHERE material_id = 4;  →  UPDATE 1
+  3.37s  [ 6] A  COMMIT;  →  COMMIT
+  3.52s  [ 4] B  ↳ UNBLOCKED after 3.06s → stock_qty=20.00
+  3.52s  [ 7] B  ROLLBACK;  →  ROLLBACK
+
+CHECK   SELECT stock_qty AS final_stock FROM material WHERE material_id = 4;
+        → final_stock=20.00

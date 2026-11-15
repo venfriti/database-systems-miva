@@ -1,0 +1,53 @@
+-- Query : q6_reorder_report
+-- Phase : after-indexes
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 8.783 ms | median 10.817 ms | max 10.932 ms
+-- Planning time   median 2.000 ms
+
+-- Q6  Material reorder report
+-- Business use: what to restock — current stock, last 90 days of usage,
+--               and how many days the remaining stock will last.
+SELECT m.name,
+       m.unit,
+       m.stock_qty,
+       m.reorder_level,
+       -SUM(sm.change_qty)                                          AS used_last_90_days,
+       round(m.stock_qty / NULLIF(-SUM(sm.change_qty) / 90.0, 0), 1) AS days_of_cover
+FROM material m
+LEFT JOIN stock_movement sm
+       ON sm.material_id = m.material_id
+      AND sm.reason      = 'order_usage'
+      AND sm.moved_at   >= TIMESTAMPTZ '2026-08-17 00:00'
+GROUP BY m.material_id
+ORDER BY days_of_cover NULLS LAST
+
+-- Plan of the last run:
+Sort  (cost=4965.65..4965.67 rows=9 width=105) (actual time=9.682..9.686 rows=9 loops=1)
+  Sort Key: (round((m.stock_qty / NULLIF(((- sum(sm.change_qty)) / 90.0), '0'::numeric)), 1))
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=2106
+  ->  HashAggregate  (cost=4965.26..4965.50 rows=9 width=105) (actual time=9.630..9.639 rows=9 loops=1)
+        Group Key: m.material_id
+        Batches: 1  Memory Usage: 24kB
+        Buffers: shared hit=2103
+        ->  Hash Right Join  (cost=2771.37..4920.17 rows=9018 width=47) (actual time=2.060..8.364 rows=8794 loops=1)
+              Hash Cond: (sm.material_id = m.material_id)
+              Buffers: shared hit=2103
+              ->  Bitmap Heap Scan on stock_movement sm  (cost=2770.17..4884.14 rows=9018 width=10) (actual time=2.023..6.775 rows=8793 loops=1)
+                    Recheck Cond: (moved_at >= '2026-08-17 00:00:00+01'::timestamp with time zone)
+                    Filter: ((reason)::text = 'order_usage'::text)
+                    Rows Removed by Filter: 25
+                    Heap Blocks: exact=1809
+                    Buffers: shared hit=2102
+                    ->  Bitmap Index Scan on idx_stock_movement_material_time  (cost=0.00..2767.91 rows=9065 width=0) (actual time=1.714..1.714 rows=8818 loops=1)
+                          Index Cond: (moved_at >= '2026-08-17 00:00:00+01'::timestamp with time zone)
+                          Buffers: shared hit=293
+              ->  Hash  (cost=1.09..1.09 rows=9 width=41) (actual time=0.013..0.014 rows=9 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on material m  (cost=0.00..1.09 rows=9 width=41) (actual time=0.004..0.005 rows=9 loops=1)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=207
+Planning Time: 1.623 ms
+Execution Time: 9.906 ms

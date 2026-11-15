@@ -1,0 +1,18 @@
+SCENARIO s18_stage_move_optimistic
+Title : Two staff move the same order at once — move_order_stage() (optimistic check)
+Level : READ COMMITTED
+Expect: Prevented. The UPDATE only applies WHERE status = the stage the user saw. B waits for A, then finds the order no longer at 'cutting'. Zero rows match and B's move is refused with a clear message.
+
+SETUP   SELECT place_order(6, 2, CURRENT_DATE + 14, '[{"variant_id": 2, "quantity": 1}]', 'P3-TES…
+
+   time     # S  statement  →  result
+  0.04s  [ 1] A  BEGIN;  →  BEGIN
+  0.20s  [ 2] A  SELECT move_order_stage((SELECT max(order_id) FROM sales_order WHERE …  →  move_order_stage=
+  0.36s  [ 3] B  BEGIN;  →  BEGIN
+  0.51s  [ 4] B  SELECT move_order_stage((SELECT max(order_id) FROM sales_order WHERE …  →  ⏳ BLOCKED (waiting for a lock)
+  2.97s  [ 5] A  COMMIT;  →  COMMIT
+  3.12s  [ 4] B  ↳ UNBLOCKED after 2.61s → ERROR [40001] Order 100023 is no longer at stage "cutting": it was moved by someone else. Refresh and try again.
+  3.12s  [ 6] B  ROLLBACK;  →  ROLLBACK
+
+CHECK   SELECT o.status AS final_status, string_agg(COALESCE(h.from_stage, '∅') || '→' || h.to_st…
+        → final_status=sewing, history=∅→received, received→cutting, cutting→sewing

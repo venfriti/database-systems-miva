@@ -1,0 +1,8 @@
+  primary   port 5440  running  primary/standalone
+  replica1  port 5441  running  standby
+  replica2  port 5442  running  standby
+  shard1    port 5450  running  primary/standalone
+  shard2    port 5451  running  primary/standalone
+  replication (from primary, the current primary):
+    replica1  state=streaming  sync=async
+    replica2  state=streaming  sync=async

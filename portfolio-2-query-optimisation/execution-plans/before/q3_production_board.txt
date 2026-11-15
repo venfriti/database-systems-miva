@@ -1,0 +1,58 @@
+-- Query : q3_production_board
+-- Phase : before
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 18.415 ms | median 18.698 ms | max 20.957 ms
+-- Planning time   median 3.125 ms
+
+-- Q3  Production board
+-- Business use: production staff see every order still in the workshop,
+--               most urgent first.
+SELECT o.order_number,
+       COALESCE(s.school_name, ic.first_name || ' ' || ic.last_name) AS customer,
+       o.status,
+       o.due_date,
+       o.due_date - DATE '2026-11-15' AS days_left
+FROM sales_order o
+JOIN customer c                  ON c.customer_id  = o.customer_id
+LEFT JOIN school s               ON s.customer_id  = c.customer_id
+LEFT JOIN individual_customer ic ON ic.customer_id = c.customer_id
+WHERE o.status IN ('received', 'cutting', 'sewing', 'embroidery', 'ready')
+ORDER BY o.due_date
+
+-- Plan of the last run:
+Sort  (cost=2801.52..2803.12 rows=640 width=63) (actual time=20.630..20.658 rows=585 loops=1)
+  Sort Key: o.due_date
+  Sort Method: quicksort  Memory: 67kB
+  Buffers: shared hit=998
+  ->  Hash Left Join  (cost=201.75..2771.69 rows=640 width=63) (actual time=1.951..20.411 rows=585 loops=1)
+        Hash Cond: (c.customer_id = ic.customer_id)
+        Buffers: shared hit=995
+        ->  Hash Left Join  (cost=112.25..2675.71 rows=640 width=54) (actual time=1.256..19.512 rows=585 loops=1)
+              Hash Cond: (c.customer_id = s.customer_id)
+              Buffers: shared hit=973
+              ->  Hash Join  (cost=106.88..2668.65 rows=640 width=31) (actual time=1.192..19.334 rows=585 loops=1)
+                    Hash Cond: (o.customer_id = c.customer_id)
+                    Buffers: shared hit=971
+                    ->  Seq Scan on sales_order o  (cost=0.00..2560.10 rows=640 width=31) (actual time=0.017..17.989 rows=585 loops=1)
+                          Filter: ((status)::text = ANY ('{received,cutting,sewing,embroidery,ready}'::text[]))
+                          Rows Removed by Filter: 99421
+                          Buffers: shared hit=935
+                    ->  Hash  (cost=67.50..67.50 rows=3150 width=4) (actual time=1.019..1.020 rows=3150 loops=1)
+                          Buckets: 4096  Batches: 1  Memory Usage: 143kB
+                          Buffers: shared hit=36
+                          ->  Seq Scan on customer c  (cost=0.00..67.50 rows=3150 width=4) (actual time=0.015..0.532 rows=3150 loops=1)
+                                Buffers: shared hit=36
+              ->  Hash  (cost=3.50..3.50 rows=150 width=27) (actual time=0.044..0.044 rows=150 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 17kB
+                    Buffers: shared hit=2
+                    ->  Seq Scan on school s  (cost=0.00..3.50 rows=150 width=27) (actual time=0.007..0.017 rows=150 loops=1)
+                          Buffers: shared hit=2
+        ->  Hash  (cost=52.00..52.00 rows=3000 width=15) (actual time=0.662..0.663 rows=3000 loops=1)
+              Buckets: 4096  Batches: 1  Memory Usage: 177kB
+              Buffers: shared hit=22
+              ->  Seq Scan on individual_customer ic  (cost=0.00..52.00 rows=3000 width=15) (actual time=0.007..0.273 rows=3000 loops=1)
+                    Buffers: shared hit=22
+Planning:
+  Buffers: shared hit=383
+Planning Time: 3.643 ms
+Execution Time: 20.957 ms

@@ -1,0 +1,85 @@
+StitchLine MongoDB queries — MongoDB server — run 2026-11-15 18:20
+
+=== D1 Customer history (Bayside Primary School)  (109 results)
+  {"order_number": "SL-2026-041591", "order_date": {"$date": "2026-11-10T00:00:00Z"}, "status": "cutting", "invoice": {"number": "INV-2026-041591", "total": {"$numberDecimal": "13203.40"}, "paid": {"$numberDecimal": "0.00"}}}
+  {"order_number": "SL-2026-020796", "order_date": {"$date": "2026-09-15T00:00:00Z"}, "status": "delivered", "invoice": {"number": "INV-2026-020796", "total": {"$numberDecimal": "12517.80"}, "paid": {"$numberDecimal": "12517.80"}}}
+  {"order_number": "SL-2026-050880", "order_date": {"$date": "2026-08-29T00:00:00Z"}, "status": "delivered", "invoice": {"number": "INV-2026-050880", "total": {"$numberDecimal": "7658.80"}, "paid": {"$numberDecimal": "7658.80"}}}
+  {"order_number": "SL-2026-010514", "order_date": {"$date": "2026-08-22T00:00:00Z"}, "status": "delivered", "invoice": {"number": "INV-2026-010514", "total": {"$numberDecimal": "13879.50"}, "paid": {"$numberDecimal": "13879.50"}}}
+  {"order_number": "SL-2026-084420", "order_date": {"$date": "2026-08-16T00:00:00Z"}, "status": "delivered", "invoice": {"number": "INV-2026-084420", "total": {"$numberDecimal": "11354.00"}, "paid": {"$numberDecimal": "11354.00"}}}
+  … 104 more
+  plan [with index]: PROJECTION_DEFAULT <- FETCH <- IXSCAN(customer.id_1_order_date_-1) | returned 109 | docs examined 109 | keys examined 109 | 0 ms
+  plan [forced collection scan]: SORT <- PROJECTION_DEFAULT <- COLLSCAN | returned 109 | docs examined 100006 | keys examined 0 | 62 ms
+
+=== D2 Full order view (replaces the 7-table join of Portfolio 1 verify.sql #6)  (1 result)
+  {"_id": 3, "order_number": "SL-2026-0003", "customer": {"id": 3, "type": "school", "name": "St. Mary's College", "phone": "+100000001003"}, "taken_by": {"id": 1, "name": "Grace Thompson"}, "order_date": {"$date": "2026-10-01T00:00:00Z"}, "due_date": {"$date": "2026-11-20T00:00:00Z"}, "status": "embroidery", "items": [{"line": 1, "product": {"variant_id": 6, "name": "Sports jersey", "category": "sportswear", "size": "M", "colour": "Green"}, "quantity": 45, "unit_price": {"$numberDecimal": "30.00"}, "line_total": {"$numberDecimal": "1350.00"}, "embroidery": [{"design_id": 3, "design": "St Mary's badge", "placement": "left_chest", "thread_colour": "Gold"}, {"design_id": 4, "design": "Sports house star", "placement": "back", "thread_colour": "White", "text": "ST MARY'S"}]}, {"line": 2, "product": {"variant_id": 7, "name": "Sports jersey", "category": "sportswear", "size": "L", "colour": "Green"}, "quantity": 35, "unit_price": {"$numberDecimal": "32.00"}, "line_total": {"$numberDecimal": "1120.00"}, "embroidery": [{"design_id": 3, "design": "St Mary's badge", "placement": "left_chest", "thread_colour": "Gold"}, {"design_id": 4, "design": "Sports house star", "placement": "back", "thread_colour": "White", "text": "ST MARY'S"}]}], "stages": [{"from": null, "to": "received", "by": "Grace Thompson", "at": {"$date": "2026-10-01T09:00:00Z"}}, {"from": "received", "to": "cutting", "by": "Aisha Bello", "at": {"$date": "2026-10-06T08:10:00Z"}}, {"from": "cutting", "to": "sewing", "by": "Aisha Bello", "at": {"$date": "2026-10-20T09:40:00Z"}}, {"from": "sewing", "to": "embroidery", "by": "Liam Carter", "at": {"$date": "2026-11-09T13:00:00Z"}}], "notes": "Sports day jerseys", "total_units": 80, "invoice": {"number": "INV-2026-0003", "issue_date": {"$date": "2026-10-01T00:00:00Z"}, "due_date": {"$date": "2026-11-30T00:00:00Z"}, "total": {"$numberDecimal": "2470.00"}, "paid": {"$numberDecimal": "1200.00"}, "balance": {"$numberDecimal": "1270.00"}, "payments": [{"amount": {"$numberDecimal": "1200.00"}, "method": "bank_transfer", "reference": "TRF-93007", "paid_at": {"$date": "2026-10-01T11:00:00Z"}, "received_by": "Mei Chen"}]}}
+
+=== D3 Overdue balances (top 50 oldest)  (50 results)
+  {"order_number": "SL-2016-044640", "customer": {"name": "Unity College", "phone": "+2000000073"}, "invoice": {"due_date": {"$date": "2016-02-02T00:00:00Z"}, "total": {"$numberDecimal": "7338.32"}, "paid": {"$numberDecimal": "3669.16"}, "balance": {"$numberDecimal": "3669.16"}}}
+  {"order_number": "SL-2016-070488", "customer": {"name": "Meadowbrook Academy", "phone": "+2000000096"}, "invoice": {"due_date": {"$date": "2016-02-03T00:00:00Z"}, "total": {"$numberDecimal": "7546.41"}, "paid": {"$numberDecimal": "3773.21"}, "balance": {"$numberDecimal": "3773.20"}}}
+  {"order_number": "SL-2016-073666", "customer": {"name": "Sunrise Academy", "phone": "+2000000036"}, "invoice": {"due_date": {"$date": "2016-02-05T00:00:00Z"}, "total": {"$numberDecimal": "5573.51"}, "paid": {"$numberDecimal": "2786.76"}, "balance": {"$numberDecimal": "2786.75"}}}
+  {"order_number": "SL-2016-081247", "customer": {"name": "Greenfield Academy", "phone": "+100000001001"}, "invoice": {"due_date": {"$date": "2016-02-05T00:00:00Z"}, "total": {"$numberDecimal": "9353.30"}, "paid": {"$numberDecimal": "4676.65"}, "balance": {"$numberDecimal": "4676.65"}}}
+  {"order_number": "SL-2016-094384", "customer": {"name": "Ife Nakamura", "phone": "+3000000818"}, "invoice": {"due_date": {"$date": "2016-02-05T00:00:00Z"}, "total": {"$numberDecimal": "132.00"}, "paid": {"$numberDecimal": "66.00"}, "balance": {"$numberDecimal": "66.00"}}}
+  … 45 more
+  plan [partial index unpaid_by_due]: LIMIT <- PROJECTION_DEFAULT <- FETCH <- IXSCAN(unpaid_by_due) | returned 50 | docs examined 50 | keys examined 50 | 0 ms
+
+=== D4 Production board  (585 results)
+  {"order_number": "SL-2026-013073", "customer": {"name": "Brookside Grammar School"}, "due_date": {"$date": "2026-10-03T00:00:00Z"}, "status": "ready"}
+  {"order_number": "SL-2026-058205", "customer": {"name": "Oakwood Primary School"}, "due_date": {"$date": "2026-10-03T00:00:00Z"}, "status": "embroidery"}
+  {"order_number": "SL-2026-019232", "customer": {"name": "Lara Eze"}, "due_date": {"$date": "2026-10-09T00:00:00Z"}, "status": "ready"}
+  {"order_number": "SL-2026-047193", "customer": {"name": "Grace Weber"}, "due_date": {"$date": "2026-10-09T00:00:00Z"}, "status": "ready"}
+  {"order_number": "SL-2026-085811", "customer": {"name": "Lena Ivanova"}, "due_date": {"$date": "2026-10-09T00:00:00Z"}, "status": "embroidery"}
+  … 580 more
+  plan [partial index open_by_due]: FETCH <- IXSCAN(open_by_due) | returned 585 | docs examined 585 | keys examined 585 | 1 ms
+
+=== D5 Monthly revenue by category, 2025 (first rows)  (60 results)
+  {"units": 4787, "revenue": {"$numberDecimal": "20716.82"}, "month": "2025-01", "category": "accessory", "orders": 57}
+  {"units": 436, "revenue": {"$numberDecimal": "49965.60"}, "month": "2025-01", "category": "ankara_custom", "orders": 217}
+  {"units": 807, "revenue": {"$numberDecimal": "3857.46"}, "month": "2025-01", "category": "badge", "orders": 9}
+  {"units": 26867, "revenue": {"$numberDecimal": "573296.13"}, "month": "2025-01", "category": "sportswear", "orders": 137}
+  {"units": 43972, "revenue": {"$numberDecimal": "1406694.46"}, "month": "2025-01", "category": "uniform", "orders": 238}
+  {"units": 5713, "revenue": {"$numberDecimal": "27098.05"}, "month": "2025-02", "category": "accessory", "orders": 75}
+  … 54 more
+
+=== D6 Stuck orders (no stage change for 7+ days)  (339 results)
+  {"order_number": "SL-2026-013073", "due_date": {"$date": "2026-10-03T00:00:00Z"}, "status": "ready", "last_move": {"$date": "2026-10-01T04:45:21.198Z"}}
+  {"order_number": "SL-2026-058205", "due_date": {"$date": "2026-10-03T00:00:00Z"}, "status": "embroidery", "last_move": {"$date": "2026-09-29T08:57:58.451Z"}}
+  {"order_number": "SL-2026-019232", "due_date": {"$date": "2026-10-09T00:00:00Z"}, "status": "ready", "last_move": {"$date": "2026-10-02T15:33:27.537Z"}}
+  {"order_number": "SL-2026-047193", "due_date": {"$date": "2026-10-09T00:00:00Z"}, "status": "ready", "last_move": {"$date": "2026-10-03T19:49:09.506Z"}}
+  {"order_number": "SL-2026-085811", "due_date": {"$date": "2026-10-09T00:00:00Z"}, "status": "embroidery", "last_move": {"$date": "2026-09-30T18:18:47.929Z"}}
+  … 334 more
+
+=== D7 Individuals with a waist of 70–75 cm  (223 results)
+  {"name": "Ngozi Adeyemi", "measurements": [{"values": {"waist": {"$numberDecimal": "74.0"}}}]}
+  {"name": "Lara Adeyemi", "measurements": [{"values": {"waist": {"$numberDecimal": "72.1"}}}]}
+  {"name": "Femi Bello", "measurements": [{"values": {"waist": {"$numberDecimal": "72.6"}}}]}
+  {"name": "Musa Bello", "measurements": [{"values": {"waist": {"$numberDecimal": "74.3"}}}]}
+  {"name": "Eva Chukwu", "measurements": [{"values": {"waist": {"$numberDecimal": "71.8"}}}]}
+  … 218 more
+
+=== D8 Two Ankara orders with DIFFERENT specification shapes, same collection  (2 results)
+  {"order_number": "SL-P4-AGBADA", "custom_spec": {"style": "agbada", "measurements": {"chest": {"$numberDecimal": "104"}, "shoulder": {"$numberDecimal": "48"}, "sleeve": {"$numberDecimal": "64"}, "agbada_length": {"$numberDecimal": "150"}, "trouser_length": {"$numberDecimal": "102"}, "waist": {"$numberDecimal": "88"}}, "options": {"cap": true, "neck_embroidery": "gold, traditional motif"}}}
+  {"order_number": "SL-P4-GOWN", "custom_spec": {"style": "gown", "measurements": {"bust": {"$numberDecimal": "92"}, "waist": {"$numberDecimal": "74"}, "hip": {"$numberDecimal": "101"}, "gown_length": {"$numberDecimal": "140"}}, "options": {"neckline": "sweetheart", "sleeve": "puff", "slit": "left, 30 cm"}}}
+  invalid gown spec REJECTED by validator: WriteError: Document failed validation, full error: {'index': 0, 'code': 121, 'errmsg': 'Document failed validation', 'errInfo': {'failingDocumentId': 900003, 'details': {'
+
+=== D9 Atomic conditional payment on SL-2026-0004
+  before: {"invoice": {"total": {"$numberDecimal": "120.00"}, "paid": {"$numberDecimal": "60.00"}, "balance": {"$numberDecimal": "60.00"}}}
+  pay 50 (Daniel): modified=1
+  pay 50 (Mei)   : modified=0   ← refused: would exceed the total
+  after : {"invoice": {"total": {"$numberDecimal": "120.00"}, "paid": {"$numberDecimal": "110.00"}, "balance": {"$numberDecimal": "10.00"}}}
+
+=== D10 Optimistic stage move on SL-2026-0005 (status 'cutting')
+  Aisha: cutting → sewing    modified=1
+  Liam : cutting → cancelled modified=0   ← refused: no longer at 'cutting'
+  status now: sewing
+
+=== D11 Stock ledger buckets, White poplin (latest 3 months)  (3 results)
+  {"_id": "1:2026-11", "count": 50, "net_change": {"$numberDecimal": "1.41"}}
+  {"_id": "1:2026-10", "count": 79, "net_change": {"$numberDecimal": "6.78"}}
+  {"_id": "1:2026-09", "count": 293, "net_change": {"$numberDecimal": "4.64"}}
+
+=== D12 Document sizes  (1 result)
+  {"_id": null, "orders": 100006, "avg_bytes": 1721.4253944763313, "max_bytes": 3379}
+
+=== D13 Multi-document ACID transaction: new order + stock deduction
+  transaction aborted: simulated failure after both writes
+  order saved? False  | poplin stock unchanged? 1073.76

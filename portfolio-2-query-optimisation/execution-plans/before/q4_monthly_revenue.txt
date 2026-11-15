@@ -1,0 +1,63 @@
+-- Query : q4_monthly_revenue
+-- Phase : before
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 90.492 ms | median 98.088 ms | max 115.052 ms
+-- Planning time   median 3.095 ms
+
+-- Q4  Monthly revenue by product category for one year
+-- Business use: owner's annual sales report.
+SELECT date_trunc('month', o.order_date)::date AS month,
+       p.category,
+       COUNT(DISTINCT o.order_id)              AS orders,
+       SUM(oi.quantity)                        AS units,
+       SUM(oi.quantity * oi.unit_price)        AS revenue
+FROM sales_order o
+JOIN order_item oi      ON oi.order_id  = o.order_id
+JOIN product_variant v  ON v.variant_id = oi.variant_id
+JOIN product p          ON p.product_id = v.product_id
+WHERE o.order_date >= DATE '2025-01-01'
+  AND o.order_date <  DATE '2026-01-01'
+  AND o.status <> 'cancelled'
+GROUP BY 1, 2
+ORDER BY 1, 2
+
+-- Plan of the last run:
+GroupAggregate  (cost=10096.36..10940.88 rows=17880 width=61) (actual time=105.368..114.374 rows=60 loops=1)
+  Group Key: ((date_trunc('month'::text, (o.order_date)::timestamp with time zone))::date), p.category
+  Buffers: shared hit=2686
+  ->  Sort  (cost=10096.36..10157.23 rows=24346 width=27) (actual time=105.326..107.144 rows=24269 loops=1)
+        Sort Key: ((date_trunc('month'::text, (o.order_date)::timestamp with time zone))::date), p.category, o.order_id
+        Sort Method: quicksort  Memory: 2127kB
+        Buffers: shared hit=2686
+        ->  Hash Join  (cost=2802.26..8322.59 rows=24346 width=27) (actual time=8.494..82.948 rows=24269 loops=1)
+              Hash Cond: (v.product_id = p.product_id)
+              Buffers: shared hit=2677
+              ->  Hash Join  (cost=2800.97..8053.95 rows=24346 width=22) (actual time=8.436..70.830 rows=24269 loops=1)
+                    Hash Cond: (oi.variant_id = v.variant_id)
+                    Buffers: shared hit=2676
+                    ->  Hash Join  (cost=2796.57..7983.86 rows=24346 width=22) (actual time=8.385..65.338 rows=24269 loops=1)
+                          Hash Cond: (oi.order_id = o.order_id)
+                          Buffers: shared hit=2675
+                          ->  Seq Scan on order_item oi  (cost=0.00..4470.50 rows=273050 width=18) (actual time=0.002..19.851 rows=273050 loops=1)
+                                Buffers: shared hit=1740
+                          ->  Hash  (cost=2685.11..2685.11 rows=8917 width=8) (actual time=8.299..8.301 rows=8894 loops=1)
+                                Buckets: 16384  Batches: 1  Memory Usage: 476kB
+                                Buffers: shared hit=935
+                                ->  Seq Scan on sales_order o  (cost=0.00..2685.11 rows=8917 width=8) (actual time=5.109..6.908 rows=8894 loops=1)
+                                      Filter: ((order_date >= '2025-01-01'::date) AND (order_date < '2026-01-01'::date) AND ((status)::text <> 'cancelled'::text))
+                                      Rows Removed by Filter: 91112
+                                      Buffers: shared hit=935
+                    ->  Hash  (cost=2.51..2.51 rows=151 width=8) (actual time=0.033..0.034 rows=151 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 14kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on product_variant v  (cost=0.00..2.51 rows=151 width=8) (actual time=0.003..0.012 rows=151 loops=1)
+                                Buffers: shared hit=1
+              ->  Hash  (cost=1.13..1.13 rows=13 width=13) (actual time=0.024..0.024 rows=13 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on product p  (cost=0.00..1.13 rows=13 width=13) (actual time=0.011..0.012 rows=13 loops=1)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=300
+Planning Time: 3.095 ms
+Execution Time: 115.052 ms

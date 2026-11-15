@@ -1,0 +1,22 @@
+SCENARIO s09_fix_repeatable_read_retry
+Title : Fix 3 — REPEATABLE READ detects the conflict; the application retries
+Level : REPEATABLE READ
+Expect: B's write fails with SQLSTATE 40001 (could not serialize access due to concurrent update). B retries in a new transaction, sees 20, and declines the order.
+
+SETUP   UPDATE material SET stock_qty = 50 WHERE material_id = 4;
+
+   time     # S  statement  →  result
+  0.01s  [ 1] A  BEGIN ISOLATION LEVEL REPEATABLE READ;  →  BEGIN
+  0.16s  [ 2] A  SELECT stock_qty FROM material WHERE material_id = 4;  →  stock_qty=50.00
+  0.31s  [ 3] B  BEGIN ISOLATION LEVEL REPEATABLE READ;  →  BEGIN
+  0.47s  [ 4] B  SELECT stock_qty FROM material WHERE material_id = 4;  →  stock_qty=50.00
+  0.62s  [ 5] A  UPDATE material SET stock_qty = 20 WHERE material_id = 4;  →  UPDATE 1
+  0.77s  [ 6] A  COMMIT;  →  COMMIT
+  0.93s  [ 7] B  UPDATE material SET stock_qty = 10 WHERE material_id = 4;  →  ERROR [40001] could not serialize access due to concurrent update
+  1.08s  [ 8] B  ROLLBACK;  →  ROLLBACK
+  1.23s  [ 9] B  BEGIN ISOLATION LEVEL REPEATABLE READ;  →  BEGIN
+  1.38s  [10] B  SELECT stock_qty AS stock_on_retry FROM material WHERE material_id = …  →  stock_on_retry=20.00
+  1.54s  [11] B  ROLLBACK;  →  ROLLBACK
+
+CHECK   SELECT stock_qty AS final_stock FROM material WHERE material_id = 4;
+        → final_stock=20.00

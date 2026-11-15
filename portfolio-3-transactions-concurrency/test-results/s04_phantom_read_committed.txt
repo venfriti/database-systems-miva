@@ -1,0 +1,12 @@
+SCENARIO s04_phantom_read_committed
+Title : Phantom read — the production board counts open orders twice
+Level : B = READ COMMITTED
+Expect: Anomaly. B's second count is one higher: a new 'phantom' row matching its WHERE clause appeared.
+
+
+   time     # S  statement  →  result
+  0.00s  [ 1] B  BEGIN ISOLATION LEVEL READ COMMITTED;  →  BEGIN
+  0.15s  [ 2] B  SELECT COUNT(*) AS open_orders FROM sales_order WHERE status IN ('rec…  →  open_orders=585
+  0.31s  [ 3] A  INSERT INTO sales_order (order_number, customer_id, taken_by, due_dat…  →  INSERT 0 1
+  0.47s  [ 4] B  SELECT COUNT(*) AS open_orders FROM sales_order WHERE status IN ('rec…  →  open_orders=586
+  0.62s  [ 5] B  COMMIT;  →  COMMIT

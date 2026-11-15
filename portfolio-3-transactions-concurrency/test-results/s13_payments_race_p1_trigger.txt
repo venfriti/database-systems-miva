@@ -1,0 +1,17 @@
+SCENARIO s13_payments_race_p1_trigger
+Title : Two payments at once — the Portfolio 1 design (trigger that sums payments)
+Level : READ COMMITTED
+Expect: PROBLEM. Invoice total 120, already paid 60. Each trigger only sees COMMITTED payments, so each approves a 50 payment. Both commit and the invoice is overpaid (160 paid on 120).
+
+SETUP   DROP SCHEMA IF EXISTS p1_race CASCADE; CREATE SCHEMA p1_race; CREATE TABLE p1_race.invoic…
+
+   time     # S  statement  →  result
+  0.02s  [ 1] A  BEGIN;  →  BEGIN
+  0.17s  [ 2] A  INSERT INTO p1_race.payment (invoice_id, amount) VALUES (1, 50.00);  →  INSERT 0 1
+  0.33s  [ 3] B  BEGIN;  →  BEGIN
+  0.48s  [ 4] B  INSERT INTO p1_race.payment (invoice_id, amount) VALUES (1, 50.00);  →  INSERT 0 1
+  0.64s  [ 5] A  COMMIT;  →  COMMIT
+  0.79s  [ 6] B  COMMIT;  →  COMMIT
+
+CHECK   SELECT i.total_amount, SUM(p.amount) AS total_paid, SUM(p.amount) > i.total_amount AS ove…
+        → total_amount=120.00, total_paid=160.00, overpaid=True

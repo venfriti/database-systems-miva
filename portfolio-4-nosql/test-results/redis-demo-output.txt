@@ -1,0 +1,32 @@
+StitchLine Redis demo — Redis 7.4.8 — run 2026-11-15 18:20
+
+=== R1 Production board cache
+  loaded 585 open orders in 32.4 ms (1 hash per order + sorted set by due date + stage counter)
+  10 most urgent orders (from Redis):
+    SL-2026-013073   2026-10-03  ready      Brookside Grammar School
+    SL-2026-058205   2026-10-03  embroidery Oakwood Primary School
+    SL-2026-019232   2026-10-09  ready      Lara Eze
+    SL-2026-047193   2026-10-09  ready      Grace Weber
+    SL-2026-085811   2026-10-09  embroidery Lena Ivanova
+    …
+  stage counts: {'ready': '225', 'embroidery': '158', 'sewing': '108', 'cutting': '75', 'received': '19'}
+  round-trip latency, median of 200 calls from Python (includes network/driver):
+    top-10 board    Redis  1.676 ms   PostgreSQL (indexed, Portfolio 2)  0.766 ms
+    stage counts    Redis  0.617 ms   PostgreSQL GROUP BY                0.837 ms
+  memory used by Redis: 1.60M for 587 keys; one order hash = 152 bytes
+
+=== R2 Optimistic stage move with WATCH / MULTI / EXEC
+  A: WATCH sl:order:SL-2026-013073; sees status = cutting
+  B: WATCH, MULTI, HSET status=sewing, EXEC → committed
+  A: MULTI, HSET status=cancelled, EXEC → WatchError: key changed since WATCH, nothing applied
+  final status = sewing  (B's move kept; A must refresh and decide again)
+
+=== R3 Idempotent payment submission (SET NX EX)
+  click 1: SET NX → OK, record payment
+  click 2: SET NX → already submitted, ignore
+  click 3: SET NX → already submitted, ignore
+  payments recorded: 1; token expires in 600 s
+
+=== R4 Stock reservation: 50 threads each try to reserve 1 cone from 30
+  naive GET-then-SET : 50 reservations accepted, stock left 28  → OVERSOLD by 20 (lost updates)
+  Lua script         : 30 reservations accepted, stock left 0  → correct (script runs atomically)

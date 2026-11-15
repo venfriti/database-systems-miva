@@ -1,0 +1,47 @@
+-- Query : q5b_stuck_orders_not_exists
+-- Phase : before
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 39.314 ms | median 39.875 ms | max 42.029 ms
+-- Planning time   median 2.511 ms
+
+-- Q5b Stuck orders — same question rewritten with NOT EXISTS
+-- Logically equivalent to Q5a. The planner can turn NOT EXISTS into an
+-- anti-join, so the history table is scanned once instead of once per order.
+SELECT o.order_number,
+       o.status,
+       o.due_date
+FROM sales_order o
+WHERE o.status IN ('received', 'cutting', 'sewing', 'embroidery', 'ready')
+  AND NOT EXISTS (SELECT 1
+                  FROM order_stage_history h
+                  WHERE h.order_id = o.order_id
+                    AND h.changed_at >= TIMESTAMPTZ '2026-11-08 00:00')
+ORDER BY o.due_date
+
+-- Plan of the last run:
+Sort  (cost=11555.20..11556.79 rows=634 width=27) (actual time=35.079..39.186 rows=339 loops=1)
+  Sort Key: o.due_date
+  Sort Method: quicksort  Memory: 43kB
+  Buffers: shared hit=5310 read=439
+  ->  Hash Right Anti Join  (cost=3568.10..11525.69 rows=634 width=27) (actual time=34.866..39.005 rows=339 loops=1)
+        Hash Cond: (h.order_id = o.order_id)
+        Buffers: shared hit=5307 read=439
+        ->  Gather  (cost=1000.00..8955.25 rows=863 width=4) (actual time=0.492..22.387 rows=397 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=4372 read=439
+              ->  Parallel Seq Scan on order_stage_history h  (cost=0.00..7868.95 rows=360 width=4) (actual time=0.128..13.923 rows=132 loops=3)
+                    Filter: (changed_at >= '2026-11-08 00:00:00+01'::timestamp with time zone)
+                    Rows Removed by Filter: 195577
+                    Buffers: shared hit=4372 read=439
+        ->  Hash  (cost=2560.10..2560.10 rows=640 width=31) (actual time=16.415..16.418 rows=585 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 46kB
+              Buffers: shared hit=935
+              ->  Seq Scan on sales_order o  (cost=0.00..2560.10 rows=640 width=31) (actual time=0.007..16.243 rows=585 loops=1)
+                    Filter: ((status)::text = ANY ('{received,cutting,sewing,embroidery,ready}'::text[]))
+                    Rows Removed by Filter: 99421
+                    Buffers: shared hit=935
+Planning:
+  Buffers: shared hit=284
+Planning Time: 2.958 ms
+Execution Time: 39.314 ms

@@ -1,0 +1,17 @@
+SCENARIO s14_payments_p2_check
+Title : Two payments at once — the Portfolio 2 design (stored amount_paid + CHECK)
+Level : READ COMMITTED
+Expect: Prevented. A's payment updates the invoice row and holds its lock. B's payment waits, then re-reads amount_paid = 110. 110 + 50 > 120 breaks chk_invoice_not_overpaid, so B fails.
+
+
+   time     # S  statement  →  result
+  0.00s  [ 1] A  BEGIN;  →  BEGIN
+  0.15s  [ 2] A  INSERT INTO payment (invoice_id, amount, method, reference, received_…  →  INSERT 0 1
+  0.31s  [ 3] B  BEGIN;  →  BEGIN
+  0.46s  [ 4] B  INSERT INTO payment (invoice_id, amount, method, reference, received_…  →  ⏳ BLOCKED (waiting for a lock)
+  2.91s  [ 5] A  COMMIT;  →  COMMIT
+  3.07s  [ 4] B  ↳ UNBLOCKED after 2.60s → ERROR [23514] new row for relation "invoice" violates check constraint "chk_invoice_not_overpaid"
+  3.07s  [ 6] B  ROLLBACK;  →  ROLLBACK
+
+CHECK   SELECT invoice_number, total_amount, amount_paid FROM invoice WHERE invoice_id = 4;
+        → invoice_number=INV-2026-0004, total_amount=120.00, amount_paid=110.00

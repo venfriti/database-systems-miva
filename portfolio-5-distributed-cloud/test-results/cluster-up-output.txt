@@ -1,0 +1,20 @@
+==> dumping source database 'stitchline'
+==> primary (port 5440)
+sh: locale: not found
+2026-11-15 17:41:13.716 UTC [1671] WARNING:  no usable system locales were found
+==> replica1 (port 5441) — base backup from the primary
+==> replica2 (port 5442) — base backup from the primary
+==> shard1 (port 5450)
+sh: locale: not found
+2026-11-15 17:49:03.632 UTC [1754] WARNING:  no usable system locales were found
+==> shard2 (port 5451)
+sh: locale: not found
+2026-11-15 17:49:06.663 UTC [1775] WARNING:  no usable system locales were found
+  primary   port 5440  running  primary/standalone
+  replica1  port 5441  running  standby
+  replica2  port 5442  running  standby
+  shard1    port 5450  running  primary/standalone
+  shard2    port 5451  running  primary/standalone
+  replication (from primary, the current primary):
+    replica1  state=streaming  sync=async
+    replica2  state=streaming  sync=async

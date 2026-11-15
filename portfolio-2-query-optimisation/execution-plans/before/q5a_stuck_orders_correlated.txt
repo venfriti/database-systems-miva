@@ -1,0 +1,43 @@
+-- Query : q5a_stuck_orders_correlated
+-- Phase : before
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 11663.877 ms | median 11938.660 ms | max 12242.904 ms
+-- Planning time   median 1.622 ms
+
+-- Q5a Stuck orders — written with a correlated scalar subquery
+-- Business use: find open orders that nobody has moved for 7+ days.
+-- The subquery is re-executed once for every open order.
+SELECT o.order_number,
+       o.status,
+       o.due_date
+FROM sales_order o
+WHERE o.status IN ('received', 'cutting', 'sewing', 'embroidery', 'ready')
+  AND (SELECT MAX(h.changed_at)
+       FROM order_stage_history h
+       WHERE h.order_id = o.order_id) < TIMESTAMPTZ '2026-11-08 00:00'
+ORDER BY o.due_date
+
+-- Plan of the last run:
+Sort  (cost=1215086969.02..1215086969.56 rows=213 width=27) (actual time=11641.725..11641.760 rows=339 loops=1)
+  Sort Key: o.due_date
+  Sort Method: quicksort  Memory: 43kB
+  Buffers: shared hit=2259038 read=556335
+  ->  Seq Scan on sales_order o  (cost=0.00..1215086960.79 rows=213 width=27) (actual time=200.360..11640.609 rows=339 loops=1)
+        Filter: (((status)::text = ANY ('{received,cutting,sewing,embroidery,ready}'::text[])) AND ((SubPlan 1) < '2026-11-08 00:00:00+01'::timestamp with time zone))
+        Rows Removed by Filter: 99667
+        Buffers: shared hit=2259035 read=556335
+        SubPlan 1
+          ->  Aggregate  (cost=12150.10..12150.11 rows=1 width=8) (actual time=19.614..19.614 rows=1 loops=585)
+                Buffers: shared hit=2258100 read=556335
+                ->  Seq Scan on order_stage_history h  (cost=0.00..12150.09 rows=6 width=8) (actual time=9.126..19.601 rows=4 loops=585)
+                      Filter: (order_id = o.order_id)
+                      Rows Removed by Filter: 587123
+                      Buffers: shared hit=2258100 read=556335
+Planning:
+  Buffers: shared hit=192
+Planning Time: 1.569 ms
+JIT:
+  Functions: 11
+  Options: Inlining true, Optimization true, Expressions true, Deforming true
+  Timing: Generation 1.151 ms, Inlining 62.811 ms, Optimization 43.827 ms, Emission 41.202 ms, Total 148.991 ms
+Execution Time: 11663.877 ms

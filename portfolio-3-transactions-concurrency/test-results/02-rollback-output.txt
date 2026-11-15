@@ -1,0 +1,131 @@
+SET search_path TO stitchline;
+SET
+=== PART A: explicit ROLLBACK ===
+SELECT stock_qty AS poplin_before FROM material WHERE material_id = 1;
+ poplin_before 
+---------------
+       1073.76
+(1 row)
+
+BEGIN;
+INSERT INTO sales_order (order_number, customer_id, taken_by, due_date, notes)
+VALUES ('SL-2026-DEMO02', 94, 2, CURRENT_DATE + 21, 'P3-TEST')
+RETURNING order_id AS demo_order 
+INSERT INTO order_item (order_id, line_no, variant_id, quantity, unit_price)
+VALUES (100009, 1, 2, 25, 20.00);
+UPDATE material SET stock_qty = stock_qty - 35 WHERE material_id = 1;
+--- inside the transaction the changes are visible ---
+SELECT (SELECT COUNT(*) FROM sales_order WHERE order_number = 'SL-2026-DEMO02') AS order_rows,
+       (SELECT stock_qty FROM material WHERE material_id = 1)                AS poplin_now;
+ order_rows | poplin_now 
+------------+------------
+          1 |    1038.76
+(1 row)
+
+ROLLBACK;
+--- after ROLLBACK: the order and the stock change are gone ---
+SELECT (SELECT COUNT(*) FROM sales_order WHERE order_number = 'SL-2026-DEMO02') AS order_rows,
+       (SELECT stock_qty FROM material WHERE material_id = 1)                AS poplin_now;
+ order_rows | poplin_now 
+------------+------------
+          0 |    1073.76
+(1 row)
+
+=== PART B: automatic rollback on error (atomicity) ===
+--- a club orders 900 blazers through an individual account: far more wool than is in stock ---
+SELECT stock_qty AS wool_before FROM material WHERE name = 'Blazer wool blend';
+ wool_before 
+-------------
+      679.22
+(1 row)
+
+SELECT COUNT(*) AS test_orders_before FROM sales_order WHERE notes = 'P3-TEST';
+ test_orders_before 
+--------------------
+                  0
+(1 row)
+
+BEGIN;
+SELECT place_order(4, 2, CURRENT_DATE + 30,
+  (SELECT jsonb_build_array(jsonb_build_object('variant_id', variant_id, 'quantity', 900))
+   FROM product_variant v JOIN product p USING (product_id)
+   WHERE p.name = 'Blazer' AND v.size = 'M' AND v.colour = 'Navy'),
+  'P3-TEST');
+psql:sql/02-rollback.sql:51: ERROR:  Not enough Blazer wool blend: 679.22 in stock, 1620.00 needed
+CONTEXT:  PL/pgSQL function place_order(integer,integer,date,jsonb,text) line 62 at RAISE
+--- the transaction is now aborted: even a harmless query is refused ---
+SELECT 1;
+psql:sql/02-rollback.sql:54: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ROLLBACK;
+--- nothing was saved: no order header, no lines, stock unchanged ---
+SELECT stock_qty AS wool_after FROM material WHERE name = 'Blazer wool blend';
+ wool_after 
+------------
+     679.22
+(1 row)
+
+SELECT COUNT(*) AS test_orders_after FROM sales_order WHERE notes = 'P3-TEST';
+ test_orders_after 
+-------------------
+                 0
+(1 row)
+
+=== PART C: SAVEPOINT — undo one step, keep the rest ===
+BEGIN;
+INSERT INTO sales_order (order_number, customer_id, taken_by, due_date, notes)
+VALUES ('SL-2026-DEMO03', 94, 2, CURRENT_DATE + 21, 'P3-TEST')
+RETURNING order_id AS demo_order 
+INSERT INTO order_item (order_id, line_no, variant_id, quantity, unit_price)
+VALUES (100011, 1, 2, 30, 20.00);
+SAVEPOINT before_design;
+--- staff picks a placement the workshop does not support ---
+INSERT INTO order_item_design (order_id, line_no, design_id, placement, thread_colour)
+VALUES (100011, 1, (SELECT min(design_id) FROM embroidery_design WHERE customer_id = 94),
+        'trouser_leg', 'Gold');
+psql:sql/02-rollback.sql:76: ERROR:  new row for relation "order_item_design" violates check constraint "order_item_design_placement_check"
+DETAIL:  Failing row contains (100011, 1, 88, trouser_leg, null, Gold).
+ROLLBACK TO SAVEPOINT before_design;
+--- corrected placement; the order header and line were kept ---
+INSERT INTO order_item_design (order_id, line_no, design_id, placement, thread_colour)
+VALUES (100011, 1, (SELECT min(design_id) FROM embroidery_design WHERE customer_id = 94),
+        'left_chest', 'Gold');
+COMMIT;
+SELECT o.order_number, oi.quantity, d.placement, d.thread_colour
+FROM sales_order o
+JOIN order_item oi USING (order_id)
+JOIN order_item_design d USING (order_id, line_no)
+WHERE o.order_number = 'SL-2026-DEMO03';
+  order_number  | quantity | placement  | thread_colour 
+----------------+----------+------------+---------------
+ SL-2026-DEMO03 |       30 | left_chest | Gold
+(1 row)
+
+=== PART D: sequences ignore ROLLBACK ===
+SELECT last_value AS seq_before FROM order_number_seq;
+ seq_before 
+------------
+          2
+(1 row)
+
+BEGIN;
+SELECT nextval('order_number_seq') AS taken_inside_txn;
+ taken_inside_txn 
+------------------
+                3
+(1 row)
+
+ROLLBACK;
+SELECT last_value AS seq_after_rollback FROM order_number_seq;
+ seq_after_rollback 
+--------------------
+                  3
+(1 row)
+
+--- the number was used up anyway: order numbers can have gaps by design ---
+--- Clean up demo data ---
+SELECT p3_reset();
+           p3_reset           
+------------------------------
+ reset: 1 test orders removed
+(1 row)
+

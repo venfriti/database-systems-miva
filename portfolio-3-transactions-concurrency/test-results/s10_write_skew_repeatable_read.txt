@@ -1,0 +1,20 @@
+SCENARIO s10_write_skew_repeatable_read
+Title : Write skew — two staff take orders for the same school against its credit limit
+Level : REPEATABLE READ
+Expect: PROBLEM (write skew). Each session sees 5,000 headroom and adds a 3,000 order. They write DIFFERENT rows, so nothing conflicts and both commit. The school ends 1,000 over its limit.
+Rule  : unpaid balance + new order must not exceed the school's credit_limit.
+
+SETUP   UPDATE school SET credit_limit = (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice…
+
+   time     # S  statement  →  result
+  0.01s  [ 1] A  BEGIN ISOLATION LEVEL REPEATABLE READ;  →  BEGIN
+  0.16s  [ 2] A  SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FRO…  →  headroom=5000.00
+  0.32s  [ 3] B  BEGIN ISOLATION LEVEL REPEATABLE READ;  →  BEGIN
+  0.48s  [ 4] B  SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FRO…  →  headroom=5000.00
+  0.63s  [ 5] A  WITH o AS (INSERT INTO sales_order (order_number, customer_id, taken_…  →  INSERT 0 1
+  0.79s  [ 6] B  WITH o AS (INSERT INTO sales_order (order_number, customer_id, taken_…  →  INSERT 0 1
+  0.94s  [ 7] A  COMMIT;  →  COMMIT
+  1.10s  [ 8] B  COMMIT;  →  COMMIT
+
+CHECK   SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice i JOIN sal…
+        → final_headroom=-1000.00

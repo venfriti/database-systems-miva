@@ -1,0 +1,87 @@
+StitchLine replication demo — run 2026-11-15 17:49 — cluster in /tmp/stitchline-cluster
+
+==============================================================================
+R1  Replication status
+==============================================================================
+  on the primary — pg_stat_replication:
+  replica   state      sync   bytes_behind  replay_lag     
+  replica1  streaming  async  0             00:00:00.001635
+  replica2  streaming  async  0             00:00:00.001644
+  replication slots (the primary keeps WAL until each replica has it):
+  slot      active  wal_status
+  replica1  True    reserved  
+  replica2  True    reserved  
+  replica1: in_recovery=True  replayed_up_to=0/1491C670  receiver=streaming from port 5440
+  replica2: in_recovery=True  replayed_up_to=0/1491C670  receiver=streaming from port 5440
+  sales_order rows  primary=100,006  replica1=100,006  replica2=100,006
+
+==============================================================================
+R2  Propagation delay: commit on the primary, poll each replica until visible (20 orders)
+==============================================================================
+  replica1: median 1.82 ms, max 4.36 ms until the new order was readable
+  replica2: median 1.46 ms, max 3.46 ms until the new order was readable
+  (asynchronous replication: the primary did NOT wait for this before confirming each commit)
+
+==============================================================================
+R3  Replicas are read-only (hot standby)
+==============================================================================
+  replica1 ← INSERT INTO payment (invoice_id, amount, method, received_…
+      ERROR [25006] cannot execute INSERT in a read-only transaction
+  replica1 ← SELECT place_order(4, 2, CURRENT_DATE + 14, '[{"variant_id…
+      ERROR [25006] cannot execute SELECT FOR UPDATE in a read-only transaction
+
+==============================================================================
+R4  Run the annual revenue report on a replica
+==============================================================================
+  category       revenue (from replica1)
+  accessory      542,535.41             
+  ankara_custom  912,330.60             
+  badge          51,002.60              
+  sportswear     12,234,826.56          
+  uniform        28,292,143.11          
+  replica1 answered in 55 ms; identical to the primary's answer: True
+
+==============================================================================
+R5  Asynchronous lag → stale read (replay paused on replica1 to make the lag visible)
+==============================================================================
+  front desk records a 25.00 payment on INV-2026-0004 (was 60.00) — COMMIT returns at once
+  server    amount_paid seen
+  primary   85.00           
+  replica1  60.00           
+  replica2  85.00           
+  replica1 is 51736 bytes of WAL behind — anyone reading from it sees the OLD balance
+  replay resumed → replica1 shows 85.00 after 1 ms  (eventual consistency)
+
+==============================================================================
+R6  Synchronous replication: latency, read-your-writes, availability
+==============================================================================
+  mode                                                   median commit ms  read-your-write on replica1
+  asynchronous (synchronous_standby_names = '')          1.313             1/50                       
+  FIRST 1 (replica1), synchronous_commit = on            2.521             50/50                      
+  FIRST 1 (replica1), synchronous_commit = remote_apply  2.571             50/50                      
+  'on' waits until replica1 has the WAL on disk; 'remote_apply' waits until it is visible to queries
+
+  -- replica1 (the synchronous replica) crashes --
+  FIRST 1 (replica1): a new commit on the primary is still waiting after 3 s → BLOCKED (writes unavailable)
+  pg_stat_activity shows the session waiting on: SyncRep
+  switched to quorum ANY 1 (replica1, replica2) → the waiting commit committed after 10.0 s in total
+     (released at replica2's next status report; an idle replica reports every wal_receiver_status_interval = 10 s)
+  next commit with replica1 still down: 3.56 ms ✓
+  replica1 restarted and caught up from its slot: state=streaming sync=quorum
+
+==============================================================================
+R7  Failover: the primary crashes
+==============================================================================
+  t=0.00s  primary killed (pg_ctl stop -m immediate = simulated crash)
+  t=0.10s  application cannot connect to port 5440: writes are DOWN
+  t=0.22s  replica1 promoted (pg_ctl promote) → now accepts writes
+  t=0.25s  first order written on the new primary (order_id 100057)  → downtime ≈ 0.3 s
+  new primary is on timeline 2; marker row survived: 'written on the original primary just before the crash'
+  orders before crash 100,006 → on new primary 100,007 (+1 new): no committed data lost
+  replica2 re-pointed to port 5441 (ALTER SYSTEM primary_conninfo + reload): streaming, sees order 100057: True
+  pg_rewind on the old primary: ok
+  new topology — pg_stat_replication on replica1 (the new primary):
+  replica      state      sync 
+  old_primary  streaming  async
+  replica2     streaming  async
+  the old primary (port 5440) is now a read-only replica; the cluster is back to 1 primary + 2 replicas

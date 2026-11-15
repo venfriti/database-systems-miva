@@ -115,7 +115,20 @@ The first two benchmark phases are limited to the eight original queries. `q2b` 
 
 ## 5. Results
 
-`benchmark.py` records every phase (before, after indexes, after redesign) in `results/timings.csv`, and `report.py` turns it into `results/summary.md` and a before/after chart. The measured results are added with the test run.
+![Before vs after](results/before-after.png)
+
+| Query | Before | After indexes | After redesign | Speed-up | Technique |
+|---|---|---|---|---|---|
+| Q1 Customer history | 30.9 ms | 2.4 ms | — | **13×** | Composite index `(customer_id, order_date DESC)` |
+| Q2 Outstanding balances | 365 ms | 355 ms | 0.84 ms | **435×** | Stored `amount_paid` + partial index |
+| Q3 Production board | 18.7 ms | 2.1 ms | — | **8.8×** | Partial index on open orders |
+| Q4 Monthly revenue | 98.1 ms | 94.6 ms | 0.19 ms | **519×** | Materialised summary view |
+| Q5a Stuck orders (correlated) | 11,939 ms | 1.7 ms | — | **7,214×** | Index `(order_id, changed_at DESC)` |
+| Q5b Stuck orders (`NOT EXISTS`) | 39.9 ms | 0.99 ms | — | **40×** | Rewritten to an anti-join, plus the same index |
+| Q6 Reorder report | 17.5 ms | 10.8 ms | — | **1.6×** | Index `(material_id, moved_at)` |
+| Q7 Record a payment (write) | 12.1 ms | 4.3 ms | 5.2 ms | **2.3×** | FK index on `payment(invoice_id)`; the redesign added no further gain |
+
+Raw measurements are in [`results/timings.csv`](results/timings.csv).
 
 ---
 
@@ -140,9 +153,9 @@ HashAggregate  (rows=9,675)  ← groups ALL 139,905 payment rows
        -> Seq Scan on invoice   (96,637 rows)
 ```
 
-To know which invoices have a balance above zero, the view must first sum *every* invoice's payments. No index can avoid that, because the filter (`balance > 0`) applies to a value that only exists after aggregation. Adding the indexes did not change this plan.
+To know which invoices have a balance above zero, the view must first sum *every* invoice's payments. No index can avoid that, because the filter (`balance > 0`) applies to a value that only exists after aggregation. The time moved from 365 to 355 ms, but the plan did not change, so the difference is run-to-run noise.
 
-**Redesign:** store `amount_paid` on the invoice, maintained by a trigger on `payment`. Add a **partial index** on `due_date` covering only unpaid invoices. The new plan reads the unpaid invoices in `due_date` order and stops after 52 rows:
+**Redesign:** store `amount_paid` on the invoice, maintained by a trigger on `payment`. Add a **partial index** on `due_date` covering only unpaid invoices (160 kB). The new plan reads the unpaid invoices in `due_date` order and stops after 52 rows:
 
 ```
 Limit (rows=50)
@@ -153,7 +166,7 @@ Limit (rows=50)
 
 Both queries end with `invoice_number` as a tie-breaker, so invoices due on the same day always come back in the same order. The index only supplies the `due_date` order, so the planner adds an **Incremental Sort**: it sorts just the invoices that share a due date, and reads two rows past the 50th to finish the last group.
 
-This reverses a Portfolio 1 decision, on purpose. Portfolio 1 said the balance should be computed, not stored, "unless performance requires it", and this is the measured case where it does.
+**365 ms → 0.84 ms.** This reverses a Portfolio 1 decision, on purpose. Portfolio 1 said the balance should be computed, not stored, "unless performance requires it", and this is the measured case where it does.
 
 The redesign also had a side benefit. Overpayment was previously policed by a trigger that summed rows. It is now a one-row `CHECK (amount_paid <= total_amount)`, and the trigger was dropped. Portfolio 1 noted the old trigger could be beaten by two simultaneous payments. The new design closes that gap, because the `UPDATE … SET amount_paid = amount_paid + x` takes a row lock. Portfolio 3 tests this.
 
@@ -161,30 +174,35 @@ The redesign also had a side benefit. Overpayment was previously policed by a tr
 
 ### Q3 — Partial index for a small, hot subset
 
-Only 0.6% of orders are open, but those are the rows production staff look at all day. The partial index stores only those rows, so it is a small fraction of the size of a full index on the same table. It stays that size however many delivered orders pile up. The predicate in `CREATE INDEX … WHERE status IN (…)` has to match the query's `WHERE` exactly, because the planner only uses a partial index when it can prove the query is covered by it.
+Only 0.6% of orders are open, but those are the rows production staff look at all day. The partial index stores only those rows: 16 kB, against 2–3 MB for a full index on the same table. It stays that size however many delivered orders pile up. The predicate in `CREATE INDEX … WHERE status IN (…)` has to match the query's `WHERE` exactly, because the planner only uses a partial index when it can prove the query is covered by it.
 
 ### Q4 — Better join plans are not enough
 
-After adding `idx_sales_order_date`, the plan used the index to find 2025's 8,894 orders. It still read all 273,050 order lines with a sequential scan and joined them with a hash join, and the time barely changed.
+After adding `idx_sales_order_date`, the plan used the index to find 2025's 8,894 orders. It still read all 273,050 order lines with a sequential scan and joined them with a hash join, and the time barely moved (98 → 95 ms).
 
 To test the planner's choice, two alternatives were timed against it, alternating over 15 rounds:
 - **forced nested loop:** hash and merge joins were switched off, forcing a nested loop with 8,894 index lookups into `order_item`;
 - **two-level grouping:** a rewrite that groups per order first, then per month and category.
 
+| Variant | Median | Range |
+|---|---|---|
+| Planner's choice (hash join) | 86 ms | 80–95 ms |
+| Forced nested loop | 56 ms | 52–71 ms |
+| Two-level grouping | 83 ms | 77–98 ms |
 
-None of the variants comes close to what the report needs. Most of the time goes on joining 24,269 order lines and sorting them for `COUNT(DISTINCT)`, and every variant still has to do that work.
+The planner's choice was not the fastest: the nested loop was about 35% quicker, and the ranges do not overlap. Even so, none of the variants comes close to what the report needs. Most of the time goes on joining 24,269 order lines and sorting them for `COUNT(DISTINCT)`, and every variant still has to do that work.
 
-**Redesign:** past months never change, so the totals are computed once into `mv_monthly_category_sales` (60 rows a year) and refreshed nightly. The report becomes a 60-row index read.
+**Redesign:** past months never change, so the totals are computed once into `mv_monthly_category_sales` (60 rows a year) and refreshed nightly. The report becomes a 60-row index read: **98 ms → 0.19 ms**.
 
 The costs are:
-- **refresh time:** a full recompute, run nightly with `REFRESH … CONCURRENTLY` so readers aren't blocked;
+- **refresh time:** 0.57 s, run nightly with `REFRESH … CONCURRENTLY` so readers aren't blocked;
 - **staleness:** the current month lags by up to a day, which is fine for an annual report. A live dashboard would need the current month computed directly and joined with the view.
 
 ### Q5 — The same question, three plans
 
 This is the clearest demonstration of query processing in the portfolio.
 
-**Q5a, correlated scalar subquery, no index.**
+**Q5a, correlated scalar subquery, no index: 11.9 seconds.**
 
 ```
 Seq Scan on sales_order o
@@ -196,9 +214,9 @@ Seq Scan on sales_order o
 
 The planner cannot flatten a correlated `MAX()` subquery into a join. So the subquery re-runs once per open order, and each run scans the whole 587,000-row history table. That is about 343 million rows read. The estimated cost (1.2 billion) shows the planner knew this plan was terrible, but it had no other option.
 
-**Q5b, `NOT EXISTS`, no index.** The query is logically equivalent. However, the planner converts `NOT EXISTS` into a **Hash Right Anti Join**: the history table is scanned once, and the open orders are matched against it in memory. That makes it far faster with no index at all, purely from how the query is written.
+**Q5b, `NOT EXISTS`, no index: 40 ms.** The query is logically equivalent. However, the planner converts `NOT EXISTS` into a **Hash Right Anti Join**: the history table is scanned once, and the open orders are matched against it in memory. That is **299× faster with no index at all**, purely from how the query is written.
 
-**With `idx_stage_history_order_time`, both are fast.** Each subquery becomes an `Index Only Scan … Limit 1`: jump to the order's newest stage change and read one entry.
+**With `idx_stage_history_order_time`, both are fast** (1.7 ms and 1.0 ms). Each subquery becomes an `Index Only Scan … Limit 1`: jump to the order's newest stage change and read one entry.
 
 **Lessons:**
 - Avoid correlated scalar subqueries on large tables.
@@ -207,15 +225,19 @@ The planner cannot flatten a correlated `MAX()` subquery into a join. So the sub
 
 ### Q6 — Range scan per material
 
-`idx_stock_movement_material_time` lets a **bitmap index scan** pick out the last 90 days of usage (about 8,800 rows) instead of reading 211,666 movements. The gain is modest, because roughly 4% of the table still has to be read and aggregated.
+`idx_stock_movement_material_time` lets a **bitmap index scan** pick out the last 90 days of usage (about 8,800 rows) instead of reading 211,666 movements: 17.5 → 10.8 ms (1.6×). The gain is modest, because roughly 4% of the table still has to be read and aggregated.
 
 ### Q7 — Indexes help writes too
 
-Recording one payment was slow, and the plan's trigger timing shows why: almost all of the time went on the `prevent_overpayment` trigger.
+Recording one payment took 12.1 ms, and the plan's trigger timing shows why:
 
-The trigger summed the invoice's existing payments, and with no index on `payment(invoice_id)` that meant scanning all 140,000 payments on **every insert**. The index removes that scan.
+```
+Trigger prevent_overpayment: time=10.402 calls=1
+```
 
-The redesign did not make the insert faster again. For Q7, the speed-up comes from the index. The redesign's benefit here is correctness: it closes the race described under Q2.
+The trigger summed the invoice's existing payments, and with no index on `payment(invoice_id)` that meant scanning all 140,000 payments on **every insert**. After the index, the trigger took 2.2 ms and the whole insert 4.3 ms.
+
+The redesign did not make the insert faster again: 5.2 ms, with the new `sync_amount_paid` trigger taking 1.9 ms. The run ranges overlap (3.8–5.7 ms with the old trigger, 4.6–6.3 ms with the new one), so the redesign costs at most a few milliseconds per payment. For Q7, the speed-up comes from the index. The redesign's benefit here is correctness: it closes the race described under Q2.
 
 PostgreSQL does not index foreign-key columns automatically. Here an unindexed FK slowed down both reads (Q1) and writes (Q7).
 
@@ -225,13 +247,30 @@ PostgreSQL does not index foreign-key columns automatically. Here an unindexed F
 
 ### Write overhead
 
-[`sql/write-overhead.sql`](sql/write-overhead.sql) inserts 5,000 orders twice: once with the three new `sales_order` indexes, and once with them dropped inside a transaction that is then rolled back. The script measures one run; it was run 9 times and the medians are taken (all runs go in [`results/write-overhead-summary.txt`](results/write-overhead-summary.txt)).
+[`sql/write-overhead.sql`](sql/write-overhead.sql) inserts 5,000 orders twice: once with the three new `sales_order` indexes, and once with them dropped inside a transaction that is then rolled back. The script measures one run; it was run 9 times and the medians taken (all runs are in [`results/write-overhead-summary.txt`](results/write-overhead-summary.txt)):
+
+| | Insert 5,000 orders |
+|---|---|
+| Without the 3 extra indexes | 178 ms |
+| With them | 206 ms (**+15%**) |
+
+Write timings inside Docker vary between sessions. A second batch of 9 runs, straight after the first, gave +26%. Treat the overhead as roughly 15–26%.
 
 Every index is one more structure to update on every insert. StitchLine enters about 25 orders a day on average and about 80 at the back-to-school peak, against reads every few seconds, so the trade is clearly worth it. A system with heavy write volume would need to be more selective.
 
 ### Storage
 
-Index sizes are measured after `REINDEX`. The size listing at the end of `write-overhead.sql` reads higher for the `sales_order` indexes, because the rolled-back test inserts leave dead entries behind in them.
+| Index | Size |
+|---|---|
+| idx_stage_history_order_time | 18 MB |
+| idx_payment_invoice | 2,912 kB |
+| idx_stock_movement_material_time | 2,360 kB |
+| idx_sales_order_customer_date | 2,168 kB |
+| idx_sales_order_date | 776 kB |
+| idx_invoice_outstanding *(partial)* | 160 kB |
+| idx_sales_order_open_due *(partial)* | 16 kB |
+
+These sizes were measured after `REINDEX`. The size listing at the end of `write-overhead.sql` reads higher for the `sales_order` indexes, because the rolled-back test inserts leave dead entries behind in them.
 
 The history index is the largest, because the history table is the largest. The two partial indexes are tiny, which makes partial indexing the most cost-effective technique used here.
 
@@ -239,7 +278,7 @@ The history index is the largest, because the history table is the largest. The 
 
 `invoice.amount_paid` now duplicates information held in `payment`. If the sync trigger were ever bypassed or disabled, the two could disagree. Three things mitigate this:
 - the `CHECK` constraint;
-- a reconciliation query (it compares `amount_paid` with the sum of the payments);
+- a reconciliation query (0 mismatches after loading 140,000 payments);
 - the fact that every write path goes through the trigger.
 
 ---
@@ -249,8 +288,8 @@ The history index is the largest, because the history table is the largest. The 
 1. **Read the plan before adding an index.** Three of the biggest wins came from understanding *why* a plan was slow: aggregating everything (Q2), a re-executed subquery (Q5a), and a per-insert full scan (Q7).
 2. **Indexes fix searching, not summarising.** Q2 and Q4 needed changes to what is stored, not more indexes.
 3. **Partial indexes suit "small active subset" data**, like open orders and unpaid invoices, which most business systems have.
-4. **How a query is written changes the plan.** `NOT EXISTS` beat a correlated `MAX()` by a wide margin with no index.
-5. **Every optimisation has a price:** write overhead on inserts, storage, staleness (the materialised view) and consistency risk (the stored balance). Each one was measured or mitigated, not assumed.
+4. **How a query is written changes the plan.** `NOT EXISTS` beat a correlated `MAX()` by 299× with no index.
+5. **Every optimisation has a price:** write overhead (+15–26% on inserts), storage, staleness (the materialised view) and consistency risk (the stored balance). Each one was measured or mitigated, not assumed.
 
 ---
 

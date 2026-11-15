@@ -77,7 +77,7 @@ Full output: [`test-results/replication-demo-output.txt`](test-results/replicati
 | # | Test | Result |
 |---|---|---|
 | R1 | Status | Both replicas `streaming`, 0 bytes behind, slots `active`. **100,006 orders on all three servers.** |
-| R2 | Commit 20 orders on the primary, then poll each replica until the order appears | The time until each replica can read the new order; the primary does not wait for it |
+| R2 | Commit 20 orders on the primary, then poll each replica until the order appears | replica1: median **1.82 ms** (max 4.36 ms); replica2: median **1.46 ms** (max 3.46 ms) |
 | R3 | Write on a replica | `ERROR [25006] cannot execute INSERT in a read-only transaction`. `place_order()` fails the same way, at its `SELECT … FOR UPDATE`. |
 | R4 | Run the annual revenue report on replica1 | Same result as on the primary (`identical: True`). Heavy reports can run on a replica without competing with order entry. |
 
@@ -92,7 +92,7 @@ To make the replication lag visible, replica1's replay was paused (`pg_wal_repla
 ```
   server    amount_paid seen
   primary   85.00
-  replica1  60.00      ← behind on WAL: the OLD balance
+  replica1  60.00      ← 51,736 bytes of WAL behind: the OLD balance
   replica2  85.00
   replay resumed → replica1 shows 85.00 almost at once  (eventual consistency)
 ```
@@ -103,18 +103,17 @@ If the app read balances from replica1, a customer who has just paid would be to
 
 50 times: insert a row on the primary, then **immediately** read it from replica1.
 
-| Mode | What the commit waits for |
-|---|---|
-| asynchronous | the primary's own disk only |
-| `synchronous_standby_names = 'FIRST 1 (replica1)'`, `synchronous_commit = on` | replica1 has the WAL on disk |
-| same, `synchronous_commit = remote_apply` | the change is visible to queries on replica1 |
+| Mode | Median commit | Row already visible on replica1 |
+|---|---|---|
+| asynchronous | 1.31 ms | **1 / 50** |
+| `synchronous_standby_names = 'FIRST 1 (replica1)'`, `synchronous_commit = on` | 2.52 ms | 50 / 50 |
+| same, `synchronous_commit = remote_apply` | 2.57 ms | **50 / 50** |
 
-`replication_demo.py` times the commits in each mode and counts how often the row is already visible on replica1; those results are added with the test run.
-
-- **`on`** waits until replica1 has the WAL **on disk**. That guarantees no data loss if the primary dies, but not that the replica has *applied* the change yet.
+- **asynchronous** commits as soon as the primary's own disk has the WAL. The replica caught up before the immediate read only once in 50 tries, so an application cannot rely on it.
+- **`on`** waits until replica1 has the WAL **on disk**. That guarantees no data loss if the primary dies, but not that the replica has *applied* the change yet. Here it had applied it every time (50/50), but nothing promises that.
 - **`remote_apply`** waits until the change is **visible to queries** on replica1: full read-your-writes.
 
-The cost here is small, because the servers share one machine. Between availability zones it is typically 1–3 ms per commit; between regions, tens of milliseconds.
+The cost here is about 1.2 ms per commit, because the servers share one machine. Between availability zones it is typically 1–3 ms per commit; between regions, tens of milliseconds.
 
 ---
 
@@ -127,9 +126,9 @@ With `FIRST 1 (replica1)`, replica1 was crashed:
 ```
   FIRST 1 (replica1): a new commit on the primary is still waiting after 3 s → BLOCKED (writes unavailable)
   pg_stat_activity shows the session waiting on: SyncRep
-  switched to quorum ANY 1 (replica1, replica2) → the waiting commit committed
+  switched to quorum ANY 1 (replica1, replica2) → the waiting commit committed after 10.0 s in total
      (released at replica2's next status report; an idle replica reports every wal_receiver_status_interval = 10 s)
-  next commit with replica1 still down: committed ✓
+  next commit with replica1 still down: 3.56 ms ✓
   replica1 restarted and caught up from its slot: state=streaming sync=quorum
 ```
 
@@ -140,10 +139,10 @@ This is the **CAP trade-off** in action. With one named synchronous replica, los
 ### 4.2 Primary crash and failover (R7)
 
 ```
-  primary killed (pg_ctl stop -m immediate = simulated crash)
-  application cannot connect to port 5440: writes are DOWN
-  replica1 promoted (pg_ctl promote) → now accepts writes
-  first order written on the new primary  → downtime ends
+  t=0.00s  primary killed (pg_ctl stop -m immediate = simulated crash)
+  t=0.10s  application cannot connect to port 5440: writes are DOWN
+  t=0.22s  replica1 promoted (pg_ctl promote) → now accepts writes
+  t=0.25s  first order written on the new primary  → downtime ≈ 0.3 s
   new primary is on timeline 2; marker row survived
   orders before crash 100,006 → on new primary 100,007 (+1 new): no committed data lost
   replica2 re-pointed to port 5441: streaming, sees the new order: True
@@ -158,11 +157,11 @@ The four steps of a failover:
 1. **Detect** that the primary is gone. Here this was instant, because the script knew it had killed it. In production, a tool such as Patroni or a managed service's health checks decides after several missed heartbeats, typically **10–30 seconds**, to avoid failing over on a brief glitch.
 2. **Promote** the most up-to-date replica. It switches to a new **timeline** (2), so its WAL history can never be confused with the old primary's.
 3. **Re-point** the other replicas. replica2 was redirected by changing `primary_conninfo` and reloading, with no restart and no new base backup.
-4. **Rejoin** the old primary. `pg_rewind` rolls back the WAL it wrote that never reached the new primary, which avoids copying the whole database again. This needs `wal_log_hints` or data checksums, both set in `cluster.sh`. It then starts as a replica.
+4. **Rejoin** the old primary. `pg_rewind` rolls back the WAL it wrote that never reached the new primary, which avoids copying the whole database again. This needs `wal_log_hints` or data checksums, both set in `cluster.sh`. It also needs the old primary's WAL from before the point where the timelines forked. `pg_rewind` first finishes crash recovery on the old primary, and the checkpoint at the end of that recovery deletes old WAL segments unless some are kept, so `cluster.sh` sets `wal_keep_size = 256MB`. The old primary then starts as a replica.
 
 The application also has to find the new primary. That is the job of a connection proxy, a DNS name that moves, or a multi-host connection string (`host=a,b target_session_attrs=read-write`).
 
-**Data loss.** With asynchronous replication, any commit not yet streamed when the primary dies is lost. The **recovery point objective (RPO)** equals the replication lag (R2). Synchronous `on` or `remote_apply` makes the RPO **zero**, at the cost shown in §4.1.
+**Data loss.** With asynchronous replication, any commit not yet streamed when the primary dies is lost. The **recovery point objective (RPO)** equals the replication lag, a few milliseconds here (R2). Synchronous `on` or `remote_apply` makes the RPO **zero**, at the cost shown in §4.1.
 
 ---
 
@@ -177,7 +176,7 @@ Output: [`test-results/partitioning-output.txt`](test-results/partitioning-outpu
 | Distribution | 11 partitions of ~9,000–9,300 orders (2026: 8,407 so far) |
 | 2025 report | `Seq Scan on sales_order_part_2025` only: **partition pruning**. The other 10 years are never touched. |
 | Customer history (`customer_id = 94`) | **All 13 partitions searched** (the 11 years with data, plus the empty 2027 and default partitions), because the query doesn't filter on the partition key |
-| Archive 2016 | `DELETE` of 9,124 rows writes a WAL record per row and leaves dead rows to vacuum. `DETACH PARTITION` changes metadata only. The `DELETE` grows with the size of the year; the `DETACH` does not. |
+| Archive 2016 | `DELETE` of 9,124 rows: 4.5 ms, plus a WAL record per row and dead rows to vacuum. `DETACH PARTITION`: 1.6 ms, metadata only. The `DELETE` grows with the size of the year; the `DETACH` does not. |
 
 **Lesson:** the partition key decides which queries get faster and which get slower. Year-based partitioning suits reporting and archiving, and slightly penalises per-customer lookups.
 
@@ -192,10 +191,10 @@ Output: [`test-results/sharding-demo-output.txt`](test-results/sharding-demo-out
 
 | # | Test | Result |
 |---|---|---|
-| S1 | Load 100,006 orders through the coordinator | Each row is routed to its shard by `hash(customer_id)` |
+| S1 | Load 100,006 orders through the coordinator | 1.6 s, each row routed to its shard by `hash(customer_id)` |
 | S2 | Distribution | shard1 **52,696**, shard2 **47,310** (53 / 47). The largest customer, Greenfield Academy, has **4,744 orders (4.7 %)**, all on one partition: a **hot spot** that hashing can't split |
-| S3 | Customer history (`customer_id = 94`) | **One** foreign scan: `Remote SQL: … FROM shard.orders_p2 WHERE customer_id = 94`. 109 rows; the other shard is never contacted. |
-| S4 | Order count and revenue by **status** | Every partition is read in full and its rows shipped to the coordinator, which aggregates each one and merges the results (scatter-gather). The script times this against the same query on one server; at this size, coordination costs more than it saves. PostgreSQL 16's `postgres_fdw` cannot push partial aggregates to a shard, so the shards ship rows. |
+| S3 | Customer history (`customer_id = 94`) | **One** foreign scan: `Remote SQL: … FROM shard.orders_p2 WHERE customer_id = 94`. 109 rows in 3.4 ms; the other shard is never contacted. |
+| S4 | Order count and revenue by **status** | Every partition is read in full and its rows shipped to the coordinator, which aggregates each one and merges the results (scatter-gather). 170 ms against 78 ms on one server: at this size, coordination costs more than it saves. PostgreSQL 16's `postgres_fdw` cannot push partial aggregates to a shard, so the shards ship rows. |
 | S4b | Group **by customer** (the shard key) | The whole aggregate runs on the shards: `Remote SQL: SELECT customer_id, count(*), sum(total_amount) … GROUP BY 1`. One row per customer crosses the network. |
 | S5 | Find by `order_number` (not the shard key) | All 4 partitions are asked (`Async Foreign Scan` ×4). Uniqueness of `order_number` across shards **cannot be enforced**, because each shard only sees its own rows. |
 | S6 | Move an order between shards | Two-phase commit, below |
@@ -280,7 +279,7 @@ The **CAP theorem**: when the network splits (Partition), a distributed system m
 
 **What sharding cost, from this portfolio's own tests:**
 - no global unique constraints (S5);
-- aggregate queries slower than one server at this size (S4);
+- aggregate queries slower than one server at this size (S4: 170 vs 78 ms);
 - cross-shard writes need two-phase commit, with its blocking failure mode (S6);
 - one customer can become a hot spot (S2: 4.7 % of orders on one partition);
 - rebalancing when servers are added.
@@ -293,8 +292,8 @@ Range **partitioning** by year (§5.1) is the realistic next step, for archiving
 
 ### 7.4 Limitations of this exercise
 
-- All servers ran on **one machine**, inside Docker. Replication and commit latencies are mostly disk-flush time, with almost no network time. Real zones add 1–3 ms of network round trip per synchronous commit, and regions 30–150 ms. A real network partition, where servers are alive but can't reach each other, was not simulated; servers were stopped instead.
-- Failover was triggered by the script, so the measured downtime excludes failure *detection*, which dominates in real systems.
+- All servers ran on **one machine**, inside Docker. Latencies (about 1.5–1.8 ms replication, 1.3–2.6 ms commits) are mostly disk-flush time, with almost no network time. Real zones add 1–3 ms of network round trip per synchronous commit, and regions 30–150 ms. A real network partition, where servers are alive but can't reach each other, was not simulated; servers were stopped instead.
+- Failover was triggered by the script, so the 0.3 s downtime excludes failure *detection*, which dominates in real systems.
 
 ---
 

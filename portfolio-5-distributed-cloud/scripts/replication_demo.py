@@ -295,10 +295,13 @@ def r7_failover():
 
     # old primary comes back as a replica of the new primary
     r1.execute("SELECT pg_create_physical_replication_slot('old_primary')")
+    # a freshly promoted server only records its new timeline in pg_control at its next
+    # checkpoint; pg_rewind reads pg_control, so force that checkpoint first
+    r1.execute("CHECKPOINT")
     rw = subprocess.run([f"{PG_BIN}/pg_rewind", f"--target-pgdata={BASE}/primary",
                          f"--source-server=host={SOCK} port={PORT['replica1']} user={USER} dbname=postgres"],
                         capture_output=True, text=True)
-    print(f"  pg_rewind on the old primary: {'ok' if rw.returncode == 0 else rw.stderr.strip()[:200]}")
+    print(f"  pg_rewind on the old primary: {'ok' if rw.returncode == 0 else rw.stderr.strip().splitlines()[-1][:200]}")
     Path(f"{BASE}/primary/standby.signal").touch()
     with open(f"{BASE}/primary/postgresql.auto.conf", "a") as f:
         f.write(f"\nprimary_conninfo = 'host={SOCK} port={PORT['replica1']} user={USER} application_name=old_primary'\n"

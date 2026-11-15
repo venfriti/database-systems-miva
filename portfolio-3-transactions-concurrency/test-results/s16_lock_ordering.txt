@@ -1,0 +1,17 @@
+SCENARIO s16_lock_ordering
+Title : Deadlock prevention — place_order() always locks materials in material_id order
+Level : READ COMMITTED
+Expect: A orders [shirts, blazers]; B orders [blazers, shirts]. Both need poplin (1), buttons (7) and wool (8). Both lock in the order 1 → 7 → 8, so B simply waits behind A. There is no deadlock and both orders succeed.
+
+
+   time     # S  statement  →  result
+  0.00s  [ 1] A  BEGIN;  →  BEGIN
+  0.15s  [ 2] A  SELECT place_order(4, 2, CURRENT_DATE + 21, '[{"variant_id": 2, "quan…  →  order_id=100020
+  0.33s  [ 3] B  BEGIN;  →  BEGIN
+  0.48s  [ 4] B  SELECT place_order(5, 6, CURRENT_DATE + 21, '[{"variant_id": 106, "qu…  →  ⏳ BLOCKED (waiting for a lock)
+  2.93s  [ 5] A  COMMIT;  →  COMMIT
+  3.09s  [ 4] B  ↳ UNBLOCKED after 2.61s → order_id=100021
+  3.09s  [ 6] B  COMMIT;  →  COMMIT
+
+CHECK   SELECT m.material_id, m.name, m.stock_qty, m.stock_qty = (SELECT SUM(change_qty) FROM sto…
+        → material_id=1, name=White poplin fabric, stock_qty=1045.76, matches_ledger=True | material_id=7, name=Buttons (pack of 100), stock_qty=700.08, matches_ledger=True | material_id=8, name=Blazer wool blend, stock_qty=661.22, matches_ledger=True

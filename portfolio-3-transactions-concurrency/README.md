@@ -51,7 +51,7 @@ psql -d stitchline -f sql/00-setup.sql             # once, after Portfolio 2
 psql -d stitchline -e -f sql/01-commit.sql
 psql -d stitchline -e -f sql/02-rollback.sql
 pip install "psycopg[binary]"
-python3 run_scenarios.py                           # all 18 scenarios
+python3 run_scenarios.py                           # all 18 scenarios (~50 s)
 python3 run_scenarios.py s06 s07                   # or selected ones
 ```
 
@@ -136,12 +136,12 @@ Two staff take orders that both use gold thread. There are 50 cones; A needs 30 
 **s06: the problem (READ COMMITTED, no locking)**
 
 ```
-  [ 2] A  SELECT stock_qty FROM material WHERE material_id = 4;  →  stock_qty=50.00
-  [ 4] B  SELECT stock_qty FROM material WHERE material_id = 4;  →  stock_qty=50.00
-  [ 5] A  UPDATE material SET stock_qty = 20 WHERE material_id = 4;  →  UPDATE 1
-  [ 6] A  COMMIT;  →  COMMIT
-  [ 7] B  UPDATE material SET stock_qty = 10 WHERE material_id = 4;  →  UPDATE 1
-  [ 8] B  COMMIT;  →  COMMIT
+  0.16s  [ 2] A  SELECT stock_qty FROM material WHERE material_id = 4;  →  stock_qty=50.00
+  0.46s  [ 4] B  SELECT stock_qty FROM material WHERE material_id = 4;  →  stock_qty=50.00
+  0.62s  [ 5] A  UPDATE material SET stock_qty = 20 WHERE material_id = 4;  →  UPDATE 1
+  0.77s  [ 6] A  COMMIT;  →  COMMIT
+  0.93s  [ 7] B  UPDATE material SET stock_qty = 10 WHERE material_id = 4;  →  UPDATE 1
+  1.08s  [ 8] B  COMMIT;  →  COMMIT
 CHECK   → final_stock=10.00, true_stock=-20
 ```
 
@@ -160,10 +160,10 @@ Both checks passed against the same stale value of 50. B's write erased A's. The
 s08 in full:
 
 ```
-  [ 2] A  UPDATE material SET stock_qty = stock_qty - 30 WHERE material_id = 4 …  →  stock_qty=20.00
-  [ 4] B  UPDATE material SET stock_qty = stock_qty - 40 WHERE material_id = 4 …  →  ⏳ BLOCKED (waiting for a lock)
-  [ 5] A  COMMIT;  →  COMMIT
-  [ 4] B  ↳ UNBLOCKED → ERROR [23514] new row for relation "material" violates check constraint "material_stock_qty_check"
+  0.16s  [ 2] A  UPDATE material SET stock_qty = stock_qty - 30 WHERE material_id = 4 …  →  stock_qty=20.00
+  0.47s  [ 4] B  UPDATE material SET stock_qty = stock_qty - 40 WHERE material_id = 4 …  →  ⏳ BLOCKED (waiting for a lock)
+  2.92s  [ 5] A  COMMIT;  →  COMMIT
+  3.07s  [ 4] B  ↳ UNBLOCKED after 2.61s → ERROR [23514] new row for relation "material" violates check constraint "material_stock_qty_check"
 ```
 
 **Used in StitchLine:** `place_order()` combines s07 and s08. It locks material rows `FOR UPDATE`, checks stock under the lock (so it can give a clear "Not enough …" message), then deducts with an atomic update.
@@ -183,13 +183,13 @@ Unlike a lost update, the two transactions write **different rows** (each insert
 s11, Serializable Snapshot Isolation in action:
 
 ```
-  [ 2] A  SELECT credit_limit - (SELECT SUM(...)) …  →  headroom=5000.00
-  [ 4] B  SELECT credit_limit - (SELECT SUM(...)) …  →  headroom=5000.00
-  [ 5] A  WITH o AS (INSERT INTO sales_order …) INSERT INTO invoice …  →  INSERT 0 1
-  [ 6] B  WITH o AS (INSERT INTO sales_order …) INSERT INTO invoice …  →  INSERT 0 1
-  [ 7] A  COMMIT;  →  COMMIT
-  [ 8] B  COMMIT;  →  ERROR [40001] could not serialize access due to read/write dependencies among transactions
-  [10] B  (retry) … → headroom_on_retry=2000.00
+  0.17s  [ 2] A  SELECT credit_limit - (SELECT SUM(...)) …  →  headroom=5000.00
+  0.48s  [ 4] B  SELECT credit_limit - (SELECT SUM(...)) …  →  headroom=5000.00
+  0.64s  [ 5] A  WITH o AS (INSERT INTO sales_order …) INSERT INTO invoice …  →  INSERT 0 1
+  0.80s  [ 6] B  WITH o AS (INSERT INTO sales_order …) INSERT INTO invoice …  →  INSERT 0 1
+  0.96s  [ 7] A  COMMIT;  →  COMMIT
+  1.11s  [ 8] B  COMMIT;  →  ERROR [40001] could not serialize access due to read/write dependencies among transactions
+  1.41s  [10] B  (retry) … → headroom_on_retry=2000.00
 ```
 
 SERIALIZABLE tracks what each transaction *read* as well as what it wrote. It noticed that A's insert changed data B had read, and B's insert changed data A had read: a cycle that no serial order could produce. It aborted one transaction.
@@ -211,25 +211,25 @@ Portfolio 1 noted that its overpayment trigger could be beaten by two simultaneo
 
 ```
 s14
-  [ 2] A  INSERT INTO payment (...) VALUES (4, 50.00, ...)  →  INSERT 0 1
-  [ 4] B  INSERT INTO payment (...) VALUES (4, 50.00, ...)  →  ⏳ BLOCKED (waiting for a lock)
-  [ 5] A  COMMIT;  →  COMMIT
-  [ 4] B  ↳ UNBLOCKED → ERROR [23514] new row for relation "invoice" violates check constraint "chk_invoice_not_overpaid"
+  0.15s  [ 2] A  INSERT INTO payment (...) VALUES (4, 50.00, ...)  →  INSERT 0 1
+  0.46s  [ 4] B  INSERT INTO payment (...) VALUES (4, 50.00, ...)  →  ⏳ BLOCKED (waiting for a lock)
+  2.91s  [ 5] A  COMMIT;  →  COMMIT
+  3.07s  [ 4] B  ↳ UNBLOCKED after 2.60s → ERROR [23514] new row for relation "invoice" violates check constraint "chk_invoice_not_overpaid"
 CHECK   → invoice_number=INV-2026-0004, total_amount=120.00, amount_paid=110.00
 ```
 
-**Lesson:** a rule that reads *many* rows (sum of payments) cannot protect itself under concurrency at READ COMMITTED. Turning it into a rule about *one* row (`amount_paid` on the invoice) lets ordinary row locking and a `CHECK` do the job. So the Portfolio 2 change made payments safer.
+**Lesson:** a rule that reads *many* rows (sum of payments) cannot protect itself under concurrency at READ COMMITTED. Turning it into a rule about *one* row (`amount_paid` on the invoice) lets ordinary row locking and a `CHECK` do the job. So the Portfolio 2 change made payments faster *and* safer.
 
 ### 6.4 Deadlock and how to prevent it
 
 **[s15](test-results/s15_deadlock.txt): the problem.** A deducts poplin then buttons; B deducts buttons then poplin.
 
 ```
-  [ 2] A  UPDATE material SET stock_qty = stock_qty - 1 WHERE material_id = 1;  →  UPDATE 1
-  [ 4] B  UPDATE material SET stock_qty = stock_qty - 1 WHERE material_id = 7;  →  UPDATE 1
-  [ 5] A  UPDATE material SET stock_qty = stock_qty - 1 WHERE material_id = 7;  →  ⏳ BLOCKED
-  [ 6] B  UPDATE material SET stock_qty = stock_qty - 1 WHERE material_id = 1;  →  ERROR [40P01] deadlock detected
-  [ 5] A  ↳ UNBLOCKED → UPDATE 1
+  0.15s  [ 2] A  UPDATE material SET stock_qty = stock_qty - 1 WHERE material_id = 1;  →  UPDATE 1
+  0.46s  [ 4] B  UPDATE material SET stock_qty = stock_qty - 1 WHERE material_id = 7;  →  UPDATE 1
+  0.62s  [ 5] A  UPDATE material SET stock_qty = stock_qty - 1 WHERE material_id = 7;  →  ⏳ BLOCKED
+  3.07s  [ 6] B  UPDATE material SET stock_qty = stock_qty - 1 WHERE material_id = 1;  →  ERROR [40P01] deadlock detected
+  4.22s  [ 5] A  ↳ UNBLOCKED after 3.60s → UPDATE 1
 ```
 
 Each session held what the other needed. After `deadlock_timeout` (1 second), PostgreSQL's deadlock detector found the cycle and aborted B, the session whose wait triggered the check. A then carried on. The data stayed correct, but B's work was lost and would have to be redone.

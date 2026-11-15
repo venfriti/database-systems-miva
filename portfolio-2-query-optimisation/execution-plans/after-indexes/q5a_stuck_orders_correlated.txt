@@ -1,0 +1,38 @@
+-- Query : q5a_stuck_orders_correlated
+-- Phase : after-indexes
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 1.293 ms | median 1.655 ms | max 1.832 ms
+-- Planning time   median 2.699 ms
+
+-- Q5a Stuck orders — written with a correlated scalar subquery
+-- Business use: find open orders that nobody has moved for 7+ days.
+-- The subquery is re-executed once for every open order.
+SELECT o.order_number,
+       o.status,
+       o.due_date
+FROM sales_order o
+WHERE o.status IN ('received', 'cutting', 'sewing', 'embroidery', 'ready')
+  AND (SELECT MAX(h.changed_at)
+       FROM order_stage_history h
+       WHERE h.order_id = o.order_id) < TIMESTAMPTZ '2026-11-08 00:00'
+ORDER BY o.due_date
+
+-- Plan of the last run:
+Index Scan using idx_sales_order_open_due on sales_order o  (cost=0.15..728.91 rows=208 width=27) (actual time=0.065..1.388 rows=339 loops=1)
+  Filter: ((SubPlan 2) < '2026-11-08 00:00:00+01'::timestamp with time zone)
+  Rows Removed by Filter: 246
+  Buffers: shared hit=1988
+  SubPlan 2
+    ->  Result  (cost=1.11..1.12 rows=1 width=8) (actual time=0.001..0.002 rows=1 loops=585)
+          Buffers: shared hit=1756
+          InitPlan 1 (returns $1)
+            ->  Limit  (cost=0.42..1.11 rows=1 width=8) (actual time=0.001..0.001 rows=1 loops=585)
+                  Buffers: shared hit=1756
+                  ->  Index Only Scan using idx_stage_history_order_time on order_stage_history h  (cost=0.42..4.54 rows=6 width=8) (actual time=0.001..0.001 rows=1 loops=585)
+                        Index Cond: ((order_id = o.order_id) AND (changed_at IS NOT NULL))
+                        Heap Fetches: 0
+                        Buffers: shared hit=1756
+Planning:
+  Buffers: shared hit=260
+Planning Time: 2.548 ms
+Execution Time: 1.497 ms

@@ -58,6 +58,7 @@ wal_level = replica
 max_wal_senders = 10
 max_replication_slots = 10
 wal_log_hints = on                 # lets pg_rewind re-attach an old primary after failover
+wal_keep_size = '256MB'            # pg_rewind reads the old primary's WAL back to before the fork
 synchronous_standby_names = ''     # asynchronous by default; demos switch this on and off
 max_prepared_transactions = 10
 EOF

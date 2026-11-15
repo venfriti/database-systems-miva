@@ -1,0 +1,68 @@
+-- Query : q2_outstanding
+-- Phase : after-redesign
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 348.349 ms | median 362.516 ms | max 371.791 ms
+-- Planning time   median 3.589 ms
+
+-- Q2  Overdue balances (the app's "Outstanding" tab)
+-- Business use: accounts chases the 50 most overdue unpaid invoices.
+-- Reference date fixed at 2026-11-15 so results are reproducible.
+SELECT b.invoice_number,
+       b.order_number,
+       c.phone,
+       b.total_amount,
+       b.amount_paid,
+       b.balance,
+       DATE '2026-11-15' - b.due_date AS days_overdue
+FROM v_invoice_balance b
+JOIN customer c ON c.customer_id = b.customer_id
+WHERE b.balance > 0
+  AND b.due_date < DATE '2026-11-15'
+ORDER BY days_overdue DESC, b.invoice_number
+LIMIT 50
+
+-- Plan of the last run:
+Limit  (cost=33637.20..33637.32 rows=50 width=116) (actual time=342.952..342.962 rows=50 loops=1)
+  Buffers: shared hit=4143, temp read=1148 written=2861
+  ->  Sort  (cost=33637.20..33753.48 rows=46515 width=116) (actual time=342.950..342.957 rows=50 loops=1)
+        Sort Key: (('2026-11-15'::date - i.due_date)) DESC, i.invoice_number
+        Sort Method: top-N heapsort  Memory: 36kB
+        Buffers: shared hit=4143, temp read=1148 written=2861
+        ->  Hash Join  (cost=26104.48..32092.00 rows=46515 width=116) (actual time=230.331..340.694 rows=9675 loops=1)
+              Hash Cond: (o.customer_id = c.customer_id)
+              Buffers: shared hit=4137, temp read=1148 written=2861
+              ->  HashAggregate  (cost=25997.61..31281.42 rows=46515 width=112) (actual time=229.622..336.776 rows=9675 loops=1)
+                    Group Key: i.invoice_id, o.order_number, o.customer_id
+                    Filter: ((i.total_amount - COALESCE(sum(p.amount), '0'::numeric)) > '0'::numeric)
+                    Planned Partitions: 8  Batches: 9  Memory Usage: 8273kB  Disk Usage: 15024kB
+                    Rows Removed by Filter: 86962
+                    Buffers: shared hit=4101, temp read=1148 written=2861
+                    ->  Hash Join  (cost=7356.61..10909.30 rows=139545 width=54) (actual time=63.847..168.665 rows=139905 loops=1)
+                          Hash Cond: (i.order_id = o.order_id)
+                          Buffers: shared hit=4101
+                          ->  Hash Right Join  (cost=4171.48..7357.85 rows=139545 width=40) (actual time=35.810..97.874 rows=139905 loops=1)
+                                Hash Cond: (p.invoice_id = i.invoice_id)
+                                Buffers: shared hit=3166
+                                ->  Seq Scan on payment p  (cost=0.00..2818.27 rows=140227 width=10) (actual time=0.012..8.661 rows=140227 loops=1)
+                                      Buffers: shared hit=1416
+                                ->  Hash  (cost=2963.69..2963.69 rows=96623 width=34) (actual time=34.988..34.988 rows=96637 loops=1)
+                                      Buckets: 131072  Batches: 1  Memory Usage: 7507kB
+                                      Buffers: shared hit=1750
+                                      ->  Seq Scan on invoice i  (cost=0.00..2963.69 rows=96623 width=34) (actual time=0.354..13.876 rows=96637 loops=1)
+                                            Filter: (due_date < '2026-11-15'::date)
+                                            Rows Removed by Filter: 458
+                                            Buffers: shared hit=1750
+                          ->  Hash  (cost=1935.06..1935.06 rows=100006 width=22) (actual time=27.455..27.456 rows=100006 loops=1)
+                                Buckets: 131072  Batches: 1  Memory Usage: 6494kB
+                                Buffers: shared hit=935
+                                ->  Seq Scan on sales_order o  (cost=0.00..1935.06 rows=100006 width=22) (actual time=0.006..8.657 rows=100006 loops=1)
+                                      Buffers: shared hit=935
+              ->  Hash  (cost=67.50..67.50 rows=3150 width=16) (actual time=0.679..0.680 rows=3150 loops=1)
+                    Buckets: 4096  Batches: 1  Memory Usage: 180kB
+                    Buffers: shared hit=36
+                    ->  Seq Scan on customer c  (cost=0.00..67.50 rows=3150 width=16) (actual time=0.011..0.299 rows=3150 loops=1)
+                          Buffers: shared hit=36
+Planning:
+  Buffers: shared hit=403
+Planning Time: 3.656 ms
+Execution Time: 348.349 ms

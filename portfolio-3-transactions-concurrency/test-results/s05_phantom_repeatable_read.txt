@@ -1,0 +1,12 @@
+SCENARIO s05_phantom_repeatable_read
+Title : Phantom read — the production board counts open orders twice
+Level : B = REPEATABLE READ
+Expect: Prevented. B's count does not change. (PostgreSQL's REPEATABLE READ also stops phantoms, which the SQL standard does not require.)
+
+
+   time     # S  statement  →  result
+  0.00s  [ 1] B  BEGIN ISOLATION LEVEL REPEATABLE READ;  →  BEGIN
+  0.15s  [ 2] B  SELECT COUNT(*) AS open_orders FROM sales_order WHERE status IN ('rec…  →  open_orders=585
+  0.31s  [ 3] A  INSERT INTO sales_order (order_number, customer_id, taken_by, due_dat…  →  INSERT 0 1
+  0.47s  [ 4] B  SELECT COUNT(*) AS open_orders FROM sales_order WHERE status IN ('rec…  →  open_orders=585
+  0.62s  [ 5] B  COMMIT;  →  COMMIT

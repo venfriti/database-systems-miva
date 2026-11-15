@@ -1,0 +1,16 @@
+SCENARIO s02_nonrepeatable_read_committed
+Title : Non-repeatable read — accounts reads the same invoice twice
+Level : B = READ COMMITTED
+Expect: Anomaly. B reads amount_paid = 60, then 90 inside the same transaction, because A committed a payment in between.
+Story : accounts (B) is preparing a customer statement while the front desk (A) records a payment.
+
+
+   time     # S  statement  →  result
+  0.00s  [ 1] B  BEGIN ISOLATION LEVEL READ COMMITTED;  →  BEGIN
+  0.15s  [ 2] B  SELECT invoice_number, total_amount, amount_paid FROM invoice WHERE i…  →  invoice_number=INV-2026-0004, total_amount=120.00, amount_paid=60.00
+  0.31s  [ 3] A  BEGIN;  →  BEGIN
+  0.46s  [ 4] A  INSERT INTO payment (invoice_id, amount, method, reference, received_…  →  INSERT 0 1
+  0.62s  [ 5] A  COMMIT;  →  COMMIT
+  0.77s  [ 6] B  SELECT invoice_number, total_amount, amount_paid FROM invoice WHERE i…  →  invoice_number=INV-2026-0004, total_amount=120.00, amount_paid=90.00
+  0.92s  [ 7] B  COMMIT;  →  COMMIT
+  1.08s  [ 8] B  SELECT invoice_number, total_amount, amount_paid AS amount_paid_new_t…  →  invoice_number=INV-2026-0004, total_amount=120.00, amount_paid_new_txn=90.00

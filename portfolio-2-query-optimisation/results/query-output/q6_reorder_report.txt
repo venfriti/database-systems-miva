@@ -1,0 +1,14 @@
+-- q6_reorder_report (first 9 rows)
+           name            | unit  | stock_qty | reorder_level | used_last_90_days | days_of_cover 
+---------------------------+-------+-----------+---------------+-------------------+---------------
+ Navy gabardine fabric     | metre |    990.38 |         80.00 |         391939.47 |           0.2
+ Polyester sports mesh     | metre |    823.02 |         50.00 |         241832.40 |           0.3
+ Blazer wool blend         | metre |    679.22 |         60.00 |         168332.67 |           0.4
+ White poplin fabric       | metre |   1073.76 |        100.00 |          85206.97 |           1.1
+ Cotton knit fabric        | metre |    681.45 |         80.00 |          35515.90 |           1.7
+ Buttons (pack of 100)     | piece |    701.88 |         15.00 |           9082.19 |           7.0
+ Ankara wax print (6 yard) | piece |    633.00 |          5.00 |           3683.00 |          15.5
+ Gold embroidery thread    | cone  |    740.15 |         10.00 |            238.25 |         279.6
+ White embroidery thread   | cone  |     55.00 |         10.00 |                   |              
+(9 rows)
+

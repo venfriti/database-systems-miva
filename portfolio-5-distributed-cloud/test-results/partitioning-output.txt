@@ -1,0 +1,149 @@
+SET search_path TO stitchline;
+SET
+Timing is off.
+DROP TABLE IF EXISTS sales_order_part CASCADE;
+psql:partitioning.sql:11: NOTICE:  table "sales_order_part" does not exist, skipping
+DROP TABLE
+CREATE TABLE sales_order_part (
+    order_id     INT         NOT NULL,
+    order_number VARCHAR(20) NOT NULL,
+    customer_id  INT         NOT NULL,
+    taken_by     INT         NOT NULL,
+    order_date   DATE        NOT NULL,
+    due_date     DATE        NOT NULL,
+    status       VARCHAR(12) NOT NULL,
+    notes        TEXT,
+    PRIMARY KEY (order_id, order_date)
+) PARTITION BY RANGE (order_date);
+CREATE TABLE
+DO $$
+BEGIN
+  FOR y IN 2016..2027 LOOP
+    EXECUTE format('CREATE TABLE sales_order_part_%s PARTITION OF sales_order_part
+                    FOR VALUES FROM (%L) TO (%L)', y, make_date(y, 1, 1), make_date(y + 1, 1, 1));
+  END LOOP;
+END $$;
+DO
+CREATE TABLE sales_order_part_default PARTITION OF sales_order_part DEFAULT;
+CREATE TABLE
+CREATE INDEX ON sales_order_part (customer_id, order_date DESC);
+CREATE INDEX
+INSERT INTO sales_order_part
+SELECT order_id, order_number, customer_id, taken_by, order_date, due_date, status, notes FROM sales_order;
+INSERT 0 100006
+ANALYZE sales_order_part;
+ANALYZE
+=== 1. Rows per partition (each INSERT was routed by order_date) ===
+SELECT tableoid::regclass AS partition, COUNT(*) AS orders,
+       pg_size_pretty(pg_relation_size(tableoid)) AS size
+FROM sales_order_part GROUP BY tableoid ORDER BY 1;
+       partition       | orders |  size  
+-----------------------+--------+--------
+ sales_order_part_2016 |   9124 | 688 kB
+ sales_order_part_2017 |   9271 | 696 kB
+ sales_order_part_2018 |   9302 | 696 kB
+ sales_order_part_2019 |   9010 | 680 kB
+ sales_order_part_2020 |   9203 | 696 kB
+ sales_order_part_2021 |   9119 | 688 kB
+ sales_order_part_2022 |   9214 | 696 kB
+ sales_order_part_2023 |   9055 | 680 kB
+ sales_order_part_2024 |   9163 | 688 kB
+ sales_order_part_2025 |   9138 | 688 kB
+ sales_order_part_2026 |   8407 | 632 kB
+(11 rows)
+
+=== 2. Partition pruning: a 2025 query touches ONE partition ===
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF)
+SELECT status, COUNT(*) FROM sales_order_part
+WHERE order_date >= DATE '2025-01-01' AND order_date < DATE '2026-01-01'
+GROUP BY status;
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ HashAggregate (actual rows=2 loops=1)
+   Group Key: sales_order_part.status
+   Batches: 1  Memory Usage: 24kB
+   ->  Seq Scan on sales_order_part_2025 sales_order_part (actual rows=9138 loops=1)
+         Filter: ((order_date >= '2025-01-01'::date) AND (order_date < '2026-01-01'::date))
+(5 rows)
+
+=== 3. No partition key in the WHERE clause: EVERY partition is searched ===
+EXPLAIN (COSTS OFF)
+SELECT order_number, order_date FROM sales_order_part WHERE customer_id = 94;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Append
+   ->  Bitmap Heap Scan on sales_order_part_2016 sales_order_part_1
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2016_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2017 sales_order_part_2
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2017_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2018 sales_order_part_3
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2018_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2019 sales_order_part_4
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2019_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2020 sales_order_part_5
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2020_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2021 sales_order_part_6
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2021_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2022 sales_order_part_7
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2022_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2023 sales_order_part_8
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2023_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2024 sales_order_part_9
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2024_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2025 sales_order_part_10
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2025_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Bitmap Heap Scan on sales_order_part_2026 sales_order_part_11
+         Recheck Cond: (customer_id = 94)
+         ->  Bitmap Index Scan on sales_order_part_2026_customer_id_order_date_idx
+               Index Cond: (customer_id = 94)
+   ->  Seq Scan on sales_order_part_2027 sales_order_part_12
+         Filter: (customer_id = 94)
+   ->  Seq Scan on sales_order_part_default sales_order_part_13
+         Filter: (customer_id = 94)
+(49 rows)
+
+=== 4. Data lifecycle: archiving 2016 ===
+Timing is on.
+BEGIN;
+BEGIN
+Time: 0.228 ms
+DELETE FROM sales_order_part_2016;
+DELETE 9124
+Time: 4.468 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.266 ms
+BEGIN;
+BEGIN
+Time: 0.191 ms
+ALTER TABLE sales_order_part DETACH PARTITION sales_order_part_2016;
+ALTER TABLE
+Time: 1.608 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.321 ms
+Timing is off.
+--- DETACH removes a whole year from the live table almost instantly; the detached
+--- table can be dumped to cheap storage and dropped. Both demos were rolled back.
+DROP TABLE sales_order_part CASCADE;
+DROP TABLE

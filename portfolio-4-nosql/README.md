@@ -79,7 +79,7 @@ The rule of thumb: **embed what is read together and owned by the parent; refere
 | **Polymorphic** | `customers` holds schools and individuals | Replaces the supertype/subtype tables. A `type` field plus validator `oneOf` keeps the specialisation disjoint. |
 | **Extended reference** | `orders.customer`, `orders.items.product`, `orders.taken_by` | Shows the order screen without a second query |
 | **Computed** | `invoice.balance`, `total_units`, `line_total` | Stored at write time so they can be indexed (the same idea as Portfolio 2's `amount_paid`) |
-| **Bucket** | `stock_ledger`: one document per material per month | Keeps arrays bounded (far below the 16 MB document limit). Monthly totals are pre-computed. |
+| **Bucket** | `stock_ledger`: one document per material per month | Keeps arrays bounded (largest bucket 116 KB, far below the 16 MB document limit). Monthly totals are pre-computed. |
 | **Flexible sub-document** | `orders.custom_spec` | Different shape per Ankara style, each one still validated |
 
 ### 3.3 Schema-flexible, not schema-less
@@ -124,7 +124,7 @@ These are the same access paths Portfolio 2 found. The two partial indexes carry
 
 ### 4.1 Running it
 
-The setup used here is **MongoDB 7.0 running in Docker as a single-node replica set**. Multi-document transactions (D13) need a replica set. MongoDB Atlas's free tier (M0) also runs as a replica set, so it works the same way, and it is the starting point for Portfolio 5.
+The results below come from **MongoDB 7.0 running in Docker as a single-node replica set**. Multi-document transactions (D13) need a replica set. MongoDB Atlas's free tier (M0) also runs as a replica set, so it works the same way, and it is the starting point for Portfolio 5.
 
 ```bash
 # 1. MongoDB 7.0 as a single-node replica set
@@ -138,7 +138,7 @@ pip install pymongo "psycopg[binary]"
 mongosh "$MONGODB_URI" --file mongodb/setup.js
 
 # 3. Migrate from PostgreSQL (PG* variables point at the stitchline database)
-python3 mongodb/migrate.py                 # ~100,000 orders
+python3 mongodb/migrate.py                 # ~100,000 orders (~164 MB of BSON before compression)
 #   python3 mongodb/migrate.py --since 2022  # smaller, if storage is tight
 
 # 4. Queries with execution plans, saved to test-results/mongodb-queries.txt
@@ -152,7 +152,17 @@ Host port 27018 avoids a clash with a MongoDB installed locally on the default p
 
 ### 4.2 Verification
 
-`run_queries.py` checks index use with `explain()`, the validator (D8) and the transaction rollback (D13), and the results are cross-checked against PostgreSQL (D4–D7). The output goes to [`test-results/mongodb-queries.txt`](test-results/mongodb-queries.txt) and is added with the test run.
+Run on MongoDB 7.0.48 (Docker, replica set `rs0`) with the Portfolio 1–3 PostgreSQL database as the source. Full output: [`test-results/mongodb-queries.txt`](test-results/mongodb-queries.txt).
+
+| Check | Result |
+|---|---|
+| `setup.js` | 6 collections; `$jsonSchema` validators on `orders`, `customers`, `products` and `materials`; 9 secondary indexes |
+| `migrate.py` | All 100,006 orders and the other 5 collections migrated in 27.6 s, with money stored as `Decimal128` |
+| Index use (`explain`) | D1 reads 109 documents through `IXSCAN(customer.id_1_order_date_-1)`, against 100,006 with a forced collection scan. The partial indexes read exactly 50 (D3) and 585 (D4) documents. |
+| Validator (D8) | The incomplete gown specification is **rejected** (`Document failed validation`, code 121) |
+| Transaction (D13) | The forced failure aborts the transaction: no order is saved and the poplin stock is unchanged |
+| Cross-check against PostgreSQL | D5 matches the Portfolio 2 summary view to the cent on all 60 month/category rows. D4 = 585 open orders and D6 = 339 stuck orders match Q3 and Q5. D7 = 223 matches a direct SQL count. |
+| `queries.js` | Runs in mongosh without errors |
 
 ---
 
@@ -165,7 +175,7 @@ Host port 27018 avoids a clash with a MongoDB installed locally on the default p
 | D3 | Overdue balances | partial index on unpaid invoices | Q2/Q2b |
 | D4 | Production board | partial index on open orders | Q3 |
 | D5 | Monthly revenue by category | aggregation: `$match → $unwind → $group → $project` | Q4 |
-| D6 | Stuck orders | `$arrayElemAt: ["$stages.at", -1]`. The latest stage is inside the document, so no subquery is needed. | Q5 (correlated subquery) |
+| D6 | Stuck orders | `$arrayElemAt: ["$stages.at", -1]`. The latest stage is inside the document, so no subquery is needed. | Q5 (correlated subquery: 12 s before indexing) |
 | D7 | Waist 70–75 cm | `$elemMatch` inside embedded measurement profiles | name/value row filter |
 | D8 | Agbada and gown orders with different spec shapes; an incomplete gown spec is **rejected** | flexible schema + `oneOf` validator | not possible without a table per style |
 | D9 | Two payments of 50 on a balance of 60 | **conditional atomic update** (`$expr` + `$inc` + `$push`) | Portfolio 3 s14 |
@@ -173,6 +183,20 @@ Host port 27018 avoids a clash with a MongoDB installed locally on the default p
 | D11 | Recent stock ledger | bucket documents | stock_movement range scan |
 | D12 | Document sizes | `$bsonSize` | — |
 | D13 | New order + stock deduction, then a forced failure | **multi-document transaction** (`with_transaction`) rolls back both | Portfolio 3 atomicity |
+
+Selected results ([full output](test-results/mongodb-queries.txt)):
+
+```
+=== D9 Atomic conditional payment on SL-2026-0004
+  before: {"invoice": {"total": {"$numberDecimal": "120.00"}, "paid": {"$numberDecimal": "60.00"}, "balance": {"$numberDecimal": "60.00"}}}
+  pay 50 (Daniel): modified=1
+  pay 50 (Mei)   : modified=0   ← refused: would exceed the total
+  after : {"invoice": {"total": {"$numberDecimal": "120.00"}, "paid": {"$numberDecimal": "110.00"}, "balance": {"$numberDecimal": "10.00"}}}
+
+=== D10 Optimistic stage move on SL-2026-0005 (status 'cutting')
+  Aisha: cutting → sewing    modified=1
+  Liam : cutting → cancelled modified=0   ← refused: no longer at 'cutting'
+```
 
 D9 needs neither a transaction nor a lock held by the application. A single-document update in MongoDB is **atomic**: the condition (`paid + 50 ≤ total`) and the change are applied as one step. In Portfolio 3 this needed a row lock and a `CHECK`. Here it falls out naturally because the invoice and its payments live in one document.
 
@@ -184,7 +208,7 @@ D9 needs neither a transaction nor a lock held by the application. A single-docu
 |---|---|---|
 | **Atomicity** | A single-document write is always atomic. Writes across several documents need a transaction (D13, replica set only). | Payments and stage moves are single-document and safe. *Order + stock deduction* spans two collections, so it needs a transaction, or it stays in PostgreSQL. |
 | **Snapshots go stale** | `customer.name` inside 100,000 orders is not updated when a school renames | Acceptable, and often correct: it records the name at the time of the order, as an invoice does. Current details come from `customers`. |
-| **Duplication cost** | Field names are repeated in every document; snapshots repeat data | Orders take noticeably more space as BSON than the equivalent relational tables. MongoDB's compression reduces the difference on disk. |
+| **Duplication cost** | Field names are repeated in every document; snapshots repeat data | Orders take **164 MB of BSON** against **90 MB** for the equivalent relational tables (166 MB with indexes). On disk, MongoDB's compression brings the orders down to 23 MB, plus 11 MB of indexes. |
 | **No foreign keys** | Nothing stops `customer.id: 99999` being written | Integrity rests on the application and validators. This is a real loss compared with Portfolio 1. |
 | **Ad-hoc analysis** | Reports that cut across documents need aggregation pipelines | D5 works, but SQL (plus the Portfolio 2 summary view) is simpler for reporting |
 
@@ -192,7 +216,7 @@ D9 needs neither a transaction nor a lock held by the application. A single-docu
 
 ## 7. Key-Value Model (Redis)
 
-[`redis/redis_demo.py`](redis/redis_demo.py) runs against a Redis 7 server and saves its output to [`test-results/redis-demo-output.txt`](test-results/redis-demo-output.txt).
+[`redis/redis_demo.py`](redis/redis_demo.py) was run against a **Redis 7.4 server**. Output: [`test-results/redis-demo-output.txt`](test-results/redis-demo-output.txt).
 
 ```bash
 # any Redis 6+: a local install, `docker run -p 6379:6379 redis:7`, or a free Redis Cloud database
@@ -203,16 +227,21 @@ python3 redis/redis_demo.py        # reads open orders from PostgreSQL (PG* vari
 
 | # | Use | Redis structures | Result |
 |---|---|---|---|
-| R1 | **Production board cache** | a hash per order (`sl:order:<number>`), a sorted set by due date (`sl:board:due`), and a hash of stage counts | the 585 open orders, loaded from PostgreSQL |
+| R1 | **Production board cache** | a hash per order (`sl:order:<number>`), a sorted set by due date (`sl:board:due`), and a hash of stage counts | 585 open orders loaded in 32 ms; 1.6 MB of memory, 152 bytes per order |
 | R2 | **Optimistic stage move** | `WATCH` / `MULTI` / `EXEC` | B moved the order first, so A's `EXEC` raised **WatchError** and nothing was applied |
 | R3 | **Payment de-duplication** | `SET key NX EX 600` | 3 clicks led to **1 payment** recorded; the key expires after 10 minutes |
-| R4 | **Stock reservation**: 50 threads reserve 1 cone from 30 | naive `GET`/`SET` vs a **Lua script** | naive: **oversells** (lost updates). Lua: **exactly 30 accepted, stock 0**. |
+| R4 | **Stock reservation**: 50 threads reserve 1 cone from 30 | naive `GET`/`SET` vs a **Lua script** | naive: **50 accepted, oversold by 20**. Lua: **exactly 30 accepted, stock 0**. |
 
 **R4 reproduces Portfolio 3's lost update (s06) in Redis.** Redis runs one command at a time, but a read in one command followed by a write in another is still not atomic. A Lua script runs as one indivisible unit, which fixes it, just as the atomic `UPDATE` did in PostgreSQL.
 
 ### An honest note on speed
 
-`redis_demo.py` also times the board against the indexed PostgreSQL query from Portfolio 2; those timings are added with the test run. After Portfolio 2's partial index, PostgreSQL answers the board in one round trip, while the Redis version needs two (`ZRANGE`, then a pipelined `HGETALL`), and at StitchLine's scale (585 open orders) the round trip dominates.
+```
+top-10 board    Redis  1.676 ms   PostgreSQL (indexed, Portfolio 2)  0.766 ms
+stage counts    Redis  0.617 ms   PostgreSQL GROUP BY                0.837 ms
+```
+
+Redis was **not** faster for the board. After Portfolio 2's partial index, PostgreSQL answers in one round trip. The Redis version needs two (`ZRANGE`, then a pipelined `HGETALL`), and at StitchLine's scale (585 open orders) the network round trip dominates. For the stage counts Redis was slightly quicker (0.62 against 0.84 ms), a difference of a fraction of a millisecond.
 
 So the case for Redis here is not speed. It is **features PostgreSQL lacks or makes awkward**: automatic expiry (R3), very cheap atomic counters, and memory-only state that can be thrown away and rebuilt. At a much larger scale, or with hundreds of screens polling the board every few seconds, the speed argument would return.
 

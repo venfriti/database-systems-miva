@@ -1,0 +1,19 @@
+SCENARIO s06_lost_update_read_committed
+Title : Lost update — two orders draw on the same thread (read, calculate, write back)
+Level : READ COMMITTED (PostgreSQL default), no locking
+Expect: PROBLEM. 50 cones in stock; A uses 30 and B uses 40, so 70 cones are promised from 50. Final stock shows 10 because B overwrote A's update. The CHECK (stock_qty >= 0) cannot catch it: every value written is positive.
+
+SETUP   UPDATE material SET stock_qty = 50 WHERE material_id = 4;
+
+   time     # S  statement  →  result
+  0.01s  [ 1] A  BEGIN;  →  BEGIN
+  0.16s  [ 2] A  SELECT stock_qty FROM material WHERE material_id = 4;  →  stock_qty=50.00
+  0.31s  [ 3] B  BEGIN;  →  BEGIN
+  0.46s  [ 4] B  SELECT stock_qty FROM material WHERE material_id = 4;  →  stock_qty=50.00
+  0.62s  [ 5] A  UPDATE material SET stock_qty = 20 WHERE material_id = 4;  →  UPDATE 1
+  0.77s  [ 6] A  COMMIT;  →  COMMIT
+  0.93s  [ 7] B  UPDATE material SET stock_qty = 10 WHERE material_id = 4;  →  UPDATE 1
+  1.08s  [ 8] B  COMMIT;  →  COMMIT
+
+CHECK   SELECT stock_qty AS final_stock, 50 - 30 - 40 AS true_stock FROM material WHERE material_…
+        → final_stock=10.00, true_stock=-20

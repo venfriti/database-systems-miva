@@ -1,0 +1,16 @@
+SCENARIO s01_dirty_read
+Title : Dirty read — can B see A's uncommitted change?
+Level : A = READ COMMITTED, B = READ UNCOMMITTED (the weakest level)
+Expect: No. PostgreSQL treats READ UNCOMMITTED as READ COMMITTED, so B only ever sees committed data (50).
+Story : a production worker starts writing off all gold thread by mistake; the front desk checks stock meanwhile.
+
+SETUP   UPDATE material SET stock_qty = 50 WHERE material_id = 4;
+
+   time     # S  statement  →  result
+  0.01s  [ 1] A  BEGIN;  →  BEGIN
+  0.16s  [ 2] A  UPDATE material SET stock_qty = 0 WHERE material_id = 4;  →  UPDATE 1
+  0.32s  [ 3] B  BEGIN ISOLATION LEVEL READ UNCOMMITTED;  →  BEGIN
+  0.47s  [ 4] B  SELECT stock_qty AS gold_thread_seen_by_B FROM material WHERE materia…  →  gold_thread_seen_by_b=50.00
+  0.62s  [ 5] A  ROLLBACK;  →  ROLLBACK
+  0.78s  [ 6] B  SELECT stock_qty AS gold_thread_seen_by_B FROM material WHERE materia…  →  gold_thread_seen_by_b=50.00
+  0.93s  [ 7] B  COMMIT;  →  COMMIT

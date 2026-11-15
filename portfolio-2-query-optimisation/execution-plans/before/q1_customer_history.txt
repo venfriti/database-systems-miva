@@ -1,0 +1,56 @@
+-- Query : q1_customer_history
+-- Phase : before
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 30.148 ms | median 30.946 ms | max 36.469 ms
+-- Planning time   median 2.122 ms
+
+-- Q1  Customer order history
+-- Business use: a school calls to reorder; front desk opens its full history
+--               with invoice totals and amounts paid.
+-- Parameter:    customer_id = 94 (Bayside Primary School, ~110 orders)
+SELECT o.order_number,
+       o.order_date,
+       o.status,
+       i.invoice_number,
+       i.total_amount,
+       COALESCE(SUM(p.amount), 0) AS amount_paid
+FROM sales_order o
+LEFT JOIN invoice i ON i.order_id   = o.order_id
+LEFT JOIN payment p ON p.invoice_id = i.invoice_id
+WHERE o.customer_id = 94
+GROUP BY o.order_id, i.invoice_id
+ORDER BY o.order_date DESC
+
+-- Plan of the last run:
+Sort  (cost=5723.35..5723.43 rows=33 width=89) (actual time=30.728..30.737 rows=109 loops=1)
+  Sort Key: o.order_date DESC
+  Sort Method: quicksort  Memory: 35kB
+  Buffers: shared hit=2681
+  ->  GroupAggregate  (cost=5721.78..5722.52 rows=33 width=89) (actual time=30.525..30.647 rows=109 loops=1)
+        Group Key: o.order_id, i.invoice_id
+        Buffers: shared hit=2678
+        ->  Sort  (cost=5721.78..5721.86 rows=33 width=63) (actual time=30.506..30.518 rows=158 loops=1)
+              Sort Key: o.order_id, i.invoice_id
+              Sort Method: quicksort  Memory: 39kB
+              Buffers: shared hit=2678
+              ->  Hash Right Join  (cost=2376.49..5720.94 rows=33 width=63) (actual time=6.674..30.370 rows=158 loops=1)
+                    Hash Cond: (p.invoice_id = i.invoice_id)
+                    Buffers: shared hit=2675
+                    ->  Seq Scan on payment p  (cost=0.00..2818.27 rows=140227 width=10) (actual time=0.016..12.370 rows=140227 loops=1)
+                          Buffers: shared hit=1416
+                    ->  Hash  (cost=2376.21..2376.21 rows=23 width=57) (actual time=6.444..6.446 rows=109 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 19kB
+                          Buffers: shared hit=1259
+                          ->  Nested Loop Left Join  (cost=0.29..2376.21 rows=23 width=57) (actual time=0.173..6.366 rows=109 loops=1)
+                                Buffers: shared hit=1259
+                                ->  Seq Scan on sales_order o  (cost=0.00..2185.07 rows=23 width=31) (actual time=0.124..5.457 rows=109 loops=1)
+                                      Filter: (customer_id = 94)
+                                      Rows Removed by Filter: 99897
+                                      Buffers: shared hit=935
+                                ->  Index Scan using invoice_order_id_key on invoice i  (cost=0.29..8.31 rows=1 width=30) (actual time=0.008..0.008 rows=1 loops=109)
+                                      Index Cond: (order_id = o.order_id)
+                                      Buffers: shared hit=324
+Planning:
+  Buffers: shared hit=238
+Planning Time: 2.111 ms
+Execution Time: 30.946 ms

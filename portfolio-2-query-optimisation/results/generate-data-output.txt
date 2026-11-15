@@ -1,0 +1,90 @@
+SET
+ setseed 
+---------
+ 
+(1 row)
+
+BEGIN
+INSERT 0 10
+INSERT 0 2
+INSERT 0 8
+CREATE TABLE
+INSERT 0 7
+INSERT 0 142
+INSERT 0 185
+SELECT 147
+INSERT 0 147
+INSERT 0 147
+SELECT 2997
+INSERT 0 2997
+INSERT 0 2997
+INSERT 0 12539
+INSERT 0 147
+INSERT 0 81
+INSERT 0 439
+INSERT 0 3
+SELECT 1
+SELECT 100000
+ALTER TABLE
+UPDATE 100000
+INSERT 0 100000
+SELECT 100000
+SELECT 273040
+INSERT 0 273040
+SELECT 590
+INSERT 0 101177
+INSERT 0 12498
+INSERT 0 2896
+INSERT 0 581286
+INSERT 0 5822
+INSERT 0 97089
+ALTER TABLE
+SELECT 97089
+INSERT 0 140221
+ALTER TABLE
+INSERT 0 210601
+INSERT 0 1048
+UPDATE 9
+COMMIT
+VACUUM
+--- Row counts ---
+      table_name      |  rows  
+----------------------+--------
+ order_stage_history  | 587127
+ order_item           | 273050
+ stock_movement       | 211666
+ payment              | 140227
+ order_item_design    | 116581
+ sales_order          | 100006
+ invoice              |  97095
+ customer_measurement |  12548
+ customer             |   3150
+ individual_customer  |   3000
+ embroidery_design    |    675
+ product_material     |    197
+ product_variant      |    151
+ school               |    150
+ staff                |     15
+ product              |     13
+ material             |      9
+ supplier             |      3
+(18 rows)
+
+--- Integrity: overpaid invoices (expect 0) ---
+ overpaid 
+----------
+        0
+(1 row)
+
+--- Integrity: materials not matching ledger (expect 0) ---
+ mismatched 
+------------
+          0
+(1 row)
+
+--- Integrity: invoice totals not matching lines (expect 0) ---
+ mismatched 
+------------
+          0
+(1 row)
+

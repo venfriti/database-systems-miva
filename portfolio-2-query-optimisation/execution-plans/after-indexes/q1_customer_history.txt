@@ -1,0 +1,56 @@
+-- Query : q1_customer_history
+-- Phase : after-indexes
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 2.347 ms | median 2.445 ms | max 3.119 ms
+-- Planning time   median 2.890 ms
+
+-- Q1  Customer order history
+-- Business use: a school calls to reorder; front desk opens its full history
+--               with invoice totals and amounts paid.
+-- Parameter:    customer_id = 94 (Bayside Primary School, ~110 orders)
+SELECT o.order_number,
+       o.order_date,
+       o.status,
+       i.invoice_number,
+       i.total_amount,
+       COALESCE(SUM(p.amount), 0) AS amount_paid
+FROM sales_order o
+LEFT JOIN invoice i ON i.order_id   = o.order_id
+LEFT JOIN payment p ON p.invoice_id = i.invoice_id
+WHERE o.customer_id = 94
+GROUP BY o.order_id, i.invoice_id
+ORDER BY o.order_date DESC
+
+-- Plan of the last run:
+Sort  (cost=1355.09..1355.54 rows=178 width=90) (actual time=2.205..2.210 rows=109 loops=1)
+  Sort Key: o.order_date DESC
+  Sort Method: quicksort  Memory: 35kB
+  Buffers: shared hit=859
+  ->  GroupAggregate  (cost=1344.44..1348.44 rows=178 width=90) (actual time=2.052..2.125 rows=109 loops=1)
+        Group Key: o.order_id, i.invoice_id
+        Buffers: shared hit=856
+        ->  Sort  (cost=1344.44..1344.88 rows=178 width=64) (actual time=2.040..2.046 rows=158 loops=1)
+              Sort Key: o.order_id, i.invoice_id
+              Sort Method: quicksort  Memory: 39kB
+              Buffers: shared hit=856
+              ->  Nested Loop Left Join  (cost=5.96..1337.78 rows=178 width=64) (actual time=0.100..1.925 rows=158 loops=1)
+                    Buffers: shared hit=853
+                    ->  Nested Loop Left Join  (cost=5.54..1270.34 rows=123 width=58) (actual time=0.073..1.176 rows=109 loops=1)
+                          Buffers: shared hit=430
+                          ->  Bitmap Heap Scan on sales_order o  (cost=5.25..348.21 rows=123 width=31) (actual time=0.046..0.418 rows=109 loops=1)
+                                Recheck Cond: (customer_id = 94)
+                                Heap Blocks: exact=104
+                                Buffers: shared hit=106
+                                ->  Bitmap Index Scan on idx_sales_order_customer_date  (cost=0.00..5.22 rows=123 width=0) (actual time=0.028..0.028 rows=109 loops=1)
+                                      Index Cond: (customer_id = 94)
+                                      Buffers: shared hit=2
+                          ->  Index Scan using invoice_order_id_key on invoice i  (cost=0.29..7.50 rows=1 width=31) (actual time=0.006..0.006 rows=1 loops=109)
+                                Index Cond: (order_id = o.order_id)
+                                Buffers: shared hit=324
+                    ->  Index Scan using idx_payment_invoice on payment p  (cost=0.42..0.53 rows=2 width=10) (actual time=0.006..0.006 rows=1 loops=109)
+                          Index Cond: (invoice_id = i.invoice_id)
+                          Buffers: shared hit=423
+Planning:
+  Buffers: shared hit=320
+Planning Time: 2.890 ms
+Execution Time: 2.445 ms

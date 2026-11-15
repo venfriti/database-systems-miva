@@ -1,0 +1,78 @@
+SET search_path TO stitchline;
+SET
+--- BEFORE: stock of the two materials this order uses ---
+SELECT material_id, name, stock_qty FROM material WHERE material_id IN (1, 7) ORDER BY 1;
+ material_id |         name          | stock_qty 
+-------------+-----------------------+-----------
+           1 | White poplin fabric   |   1073.76
+           7 | Buttons (pack of 100) |    701.88
+(2 rows)
+
+--- The transaction: Bayside Primary School orders 40 white shirts (size M) ---
+BEGIN;
+INSERT INTO sales_order (order_number, customer_id, taken_by, due_date, notes)
+VALUES ('SL-2026-DEMO01', 94, 2, CURRENT_DATE + 21, 'P3-TEST')
+RETURNING order_id AS new_order_id 
+INSERT INTO order_item (order_id, line_no, variant_id, quantity, unit_price)
+VALUES (100007, 1, 2, 40, 20.00);
+INSERT INTO order_item_design (order_id, line_no, design_id, placement, thread_colour)
+VALUES (100007, 1,
+        (SELECT min(design_id) FROM embroidery_design WHERE customer_id = 94),
+        'left_chest', 'Gold');
+UPDATE material SET stock_qty = stock_qty - 56.00 WHERE material_id = 1;
+UPDATE material SET stock_qty = stock_qty - 2.80  WHERE material_id = 7;
+INSERT INTO stock_movement (material_id, order_id, staff_id, change_qty, reason) VALUES
+  (1, 100007, 2, -56.00, 'order_usage'),
+  (7, 100007, 2,  -2.80, 'order_usage');
+INSERT INTO order_stage_history (order_id, from_stage, to_stage, changed_by)
+VALUES (100007, NULL, 'received', 2);
+INSERT INTO invoice (invoice_number, order_id, due_date, total_amount)
+VALUES ('INV-2026-DEMO01', 100007, CURRENT_DATE + 30, 800.00);
+COMMIT;
+--- AFTER COMMIT: every part of the order exists ---
+SELECT o.order_number, o.status,
+       (SELECT COUNT(*) FROM order_item          WHERE order_id = o.order_id) AS lines,
+       (SELECT COUNT(*) FROM order_item_design   WHERE order_id = o.order_id) AS designs,
+       (SELECT COUNT(*) FROM stock_movement      WHERE order_id = o.order_id) AS stock_moves,
+       (SELECT COUNT(*) FROM order_stage_history WHERE order_id = o.order_id) AS history,
+       i.invoice_number, i.total_amount
+FROM sales_order o JOIN invoice i USING (order_id)
+WHERE o.order_number = 'SL-2026-DEMO01';
+  order_number  |  status  | lines | designs | stock_moves | history | invoice_number  | total_amount 
+----------------+----------+-------+---------+-------------+---------+-----------------+--------------
+ SL-2026-DEMO01 | received |     1 |       1 |           2 |       1 | INV-2026-DEMO01 |       800.00
+(1 row)
+
+--- AFTER COMMIT: stock reduced, and still equal to the ledger total ---
+SELECT m.material_id, m.name, m.stock_qty,
+       m.stock_qty = (SELECT SUM(change_qty) FROM stock_movement s WHERE s.material_id = m.material_id) AS matches_ledger
+FROM material m WHERE material_id IN (1, 7) ORDER BY 1;
+ material_id |         name          | stock_qty | matches_ledger 
+-------------+-----------------------+-----------+----------------
+           1 | White poplin fabric   |   1017.76 | t
+           7 | Buttons (pack of 100) |    699.08 | t
+(2 rows)
+
+--- The same order through place_order(): one call, one transaction ---
+SELECT place_order(94, 2, CURRENT_DATE + 21, '[{"variant_id": 2, "quantity": 40}]', 'P3-TEST') AS order_id;
+ order_id 
+----------
+   100008
+(1 row)
+
+--- Durability check: a NEW connection sees the committed orders ---
+SET search_path TO stitchline;
+SELECT order_number, status FROM sales_order WHERE notes = 'P3-TEST' ORDER BY order_id;
+  order_number   |  status  
+-----------------+----------
+ SL-2026-DEMO01  | received
+ SL-2026-W000001 | received
+(2 rows)
+
+--- Clean up demo data ---
+SELECT p3_reset();
+           p3_reset           
+------------------------------
+ reset: 2 test orders removed
+(1 row)
+

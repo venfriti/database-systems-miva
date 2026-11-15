@@ -1,0 +1,20 @@
+SCENARIO s17_stage_move_blind
+Title : Two staff move the same order at once — plain UPDATE (no check)
+Level : READ COMMITTED
+Expect: PROBLEM. Both see the order at 'cutting'. A moves it to 'sewing'. B, who still sees 'cutting', cancels it. B's update waits for A's lock and then overwrites A's move. The history now claims the order left 'cutting' twice.
+
+SETUP   SELECT place_order(6, 2, CURRENT_DATE + 14, '[{"variant_id": 2, "quantity": 1}]', 'P3-TES…
+
+   time     # S  statement  →  result
+  0.04s  [ 1] A  BEGIN;  →  BEGIN
+  0.19s  [ 2] A  UPDATE sales_order SET status = 'sewing' WHERE order_id = (SELECT max…  →  UPDATE 1
+  0.36s  [ 3] A  INSERT INTO order_stage_history (order_id, from_stage, to_stage, chan…  →  INSERT 0 1
+  0.52s  [ 4] B  BEGIN;  →  BEGIN
+  0.67s  [ 5] B  UPDATE sales_order SET status = 'cancelled' WHERE order_id = (SELECT …  →  ⏳ BLOCKED (waiting for a lock)
+  3.12s  [ 6] A  COMMIT;  →  COMMIT
+  3.28s  [ 5] B  ↳ UNBLOCKED after 2.60s → UPDATE 1
+  3.28s  [ 7] B  INSERT INTO order_stage_history (order_id, from_stage, to_stage, chan…  →  INSERT 0 1
+  3.44s  [ 8] B  COMMIT;  →  COMMIT
+
+CHECK   SELECT o.status AS final_status, string_agg(COALESCE(h.from_stage, '∅') || '→' || h.to_st…
+        → final_status=cancelled, history=∅→received, received→cutting, cutting→sewing, cutting→cancelled

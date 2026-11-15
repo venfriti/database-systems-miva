@@ -1,0 +1,49 @@
+SET
+=== T1  PRIMARY KEY: duplicate order line ===
+psql:constraint-tests.sql:13: ERROR:  duplicate key value violates unique constraint "order_item_pkey"
+DETAIL:  Key (order_id, line_no)=(1, 1) already exists.
+=== T2  UNIQUE: duplicate customer phone ===
+psql:constraint-tests.sql:16: ERROR:  duplicate key value violates unique constraint "customer_phone_key"
+DETAIL:  Key (phone)=(+100000002001) already exists.
+=== T3  FOREIGN KEY: order for a customer that does not exist ===
+psql:constraint-tests.sql:20: ERROR:  insert or update on table "sales_order" violates foreign key constraint "sales_order_customer_id_fkey"
+DETAIL:  Key (customer_id)=(999) is not present in table "customer".
+=== T4  CHECK: quantity must be positive ===
+psql:constraint-tests.sql:24: ERROR:  new row for relation "order_item" violates check constraint "order_item_quantity_check"
+DETAIL:  Failing row contains (6, 2, 8, 0, 5.00).
+=== T5  CHECK: stock cannot go negative ===
+psql:constraint-tests.sql:27: ERROR:  new row for relation "material" violates check constraint "material_stock_qty_check"
+DETAIL:  Failing row contains (1, 1, White poplin fabric, metre, -9580.00, 100.00).
+=== T6  CHECK: status must be a valid production stage ===
+psql:constraint-tests.sql:30: ERROR:  new row for relation "sales_order" violates check constraint "sales_order_status_check"
+DETAIL:  Failing row contains (6, SL-2026-0006, 1, 1, 2026-11-10, 2026-12-15, lost, Replacement badges).
+=== T7  CHECK: due date before order date ===
+psql:constraint-tests.sql:34: ERROR:  new row for relation "sales_order" violates check constraint "chk_order_due_after_order"
+DETAIL:  Failing row contains (8, SL-TEST-0002, 1, 1, 2026-11-10, 2026-11-01, received, null).
+=== T8  DISJOINT SUBTYPE: a school customer cannot also be an individual ===
+psql:constraint-tests.sql:38: ERROR:  insert or update on table "individual_customer" violates foreign key constraint "individual_customer_customer_id_customer_type_fkey"
+DETAIL:  Key (customer_id, customer_type)=(1, individual) is not present in table "customer".
+=== T9  SUBTYPE RULE: only individuals can have body measurements ===
+psql:constraint-tests.sql:42: ERROR:  insert or update on table "customer_measurement" violates foreign key constraint "customer_measurement_customer_id_fkey"
+DETAIL:  Key (customer_id)=(2) is not present in table "individual_customer".
+=== T10 1:1 RELATIONSHIP: second invoice for the same order ===
+psql:constraint-tests.sql:46: ERROR:  duplicate key value violates unique constraint "invoice_order_id_key"
+DETAIL:  Key (order_id)=(1) already exists.
+=== T11 CHECK: stock usage must reference an order ===
+psql:constraint-tests.sql:50: ERROR:  new row for relation "stock_movement" violates check constraint "chk_usage_has_order"
+DETAIL:  Failing row contains (18, 1, null, 3, -5.00, order_usage, 2026-11-15 17:57:59.080591+01).
+=== T12 ON DELETE RESTRICT: cannot delete a customer that has history ===
+psql:constraint-tests.sql:53: ERROR:  update or delete on table "customer" violates foreign key constraint "embroidery_design_customer_id_fkey" on table "embroidery_design"
+DETAIL:  Key (customer_id)=(1) is still referenced from table "embroidery_design".
+=== T13 TRIGGER: payment larger than the outstanding balance ===
+psql:constraint-tests.sql:58: ERROR:  Payment of 100.00 exceeds outstanding balance of 60.00 on invoice 4
+CONTEXT:  PL/pgSQL function trg_prevent_overpayment() line 14 at RAISE
+=== T14 CONTROL: a valid payment that clears the balance SUCCEEDS ===
+BEGIN
+INSERT 0 1
+ invoice_number | total_amount | amount_paid | balance 
+----------------+--------------+-------------+---------
+ INV-2026-0004  |       120.00 |      120.00 |    0.00
+(1 row)
+
+ROLLBACK

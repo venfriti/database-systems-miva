@@ -1,0 +1,18 @@
+SCENARIO s08_fix_atomic_update
+Title : Fix 2 — atomic update (stock_qty = stock_qty - n) plus the CHECK constraint
+Level : READ COMMITTED
+Expect: B's UPDATE waits for A's row lock, then re-reads the committed value (20). 20 - 40 = -20 breaks CHECK (stock_qty >= 0), so B fails. No read-calculate-write gap exists.
+
+SETUP   UPDATE material SET stock_qty = 50 WHERE material_id = 4;
+
+   time     # S  statement  →  result
+  0.01s  [ 1] A  BEGIN;  →  BEGIN
+  0.16s  [ 2] A  UPDATE material SET stock_qty = stock_qty - 30 WHERE material_id = 4 …  →  stock_qty=20.00
+  0.31s  [ 3] B  BEGIN;  →  BEGIN
+  0.47s  [ 4] B  UPDATE material SET stock_qty = stock_qty - 40 WHERE material_id = 4 …  →  ⏳ BLOCKED (waiting for a lock)
+  2.92s  [ 5] A  COMMIT;  →  COMMIT
+  3.07s  [ 4] B  ↳ UNBLOCKED after 2.61s → ERROR [23514] new row for relation "material" violates check constraint "material_stock_qty_check"
+  3.07s  [ 6] B  ROLLBACK;  →  ROLLBACK
+
+CHECK   SELECT stock_qty AS final_stock FROM material WHERE material_id = 4;
+        → final_stock=20.00

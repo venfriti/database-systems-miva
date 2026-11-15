@@ -1,0 +1,23 @@
+SCENARIO s11_write_skew_serializable
+Title : Write skew — two staff take orders for the same school against its credit limit
+Level : SERIALIZABLE
+Expect: Prevented. PostgreSQL's Serializable Snapshot Isolation spots the read/write dependency cycle and aborts B with SQLSTATE 40001. B retries, sees 2,000 headroom, and declines.
+Rule  : unpaid balance + new order must not exceed the school's credit_limit.
+
+SETUP   UPDATE school SET credit_limit = (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice…
+
+   time     # S  statement  →  result
+  0.01s  [ 1] A  BEGIN ISOLATION LEVEL SERIALIZABLE;  →  BEGIN
+  0.17s  [ 2] A  SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FRO…  →  headroom=5000.00
+  0.33s  [ 3] B  BEGIN ISOLATION LEVEL SERIALIZABLE;  →  BEGIN
+  0.48s  [ 4] B  SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FRO…  →  headroom=5000.00
+  0.64s  [ 5] A  WITH o AS (INSERT INTO sales_order (order_number, customer_id, taken_…  →  INSERT 0 1
+  0.80s  [ 6] B  WITH o AS (INSERT INTO sales_order (order_number, customer_id, taken_…  →  INSERT 0 1
+  0.96s  [ 7] A  COMMIT;  →  COMMIT
+  1.11s  [ 8] B  COMMIT;  →  ERROR [40001] could not serialize access due to read/write dependencies among transactions
+  1.26s  [ 9] B  BEGIN ISOLATION LEVEL SERIALIZABLE;  →  BEGIN
+  1.41s  [10] B  SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FRO…  →  headroom_on_retry=2000.00
+  1.57s  [11] B  ROLLBACK;  →  ROLLBACK
+
+CHECK   SELECT credit_limit - (SELECT SUM(i.total_amount - i.amount_paid) FROM invoice i JOIN sal…
+        → final_headroom=2000.00

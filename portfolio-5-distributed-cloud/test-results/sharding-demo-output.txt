@@ -1,0 +1,131 @@
+StitchLine sharding demo — run 2026-11-15 17:49 — coordinator port 5440
+
+==============================================================================
+S1  Build the sharded orders table
+==============================================================================
+  loaded 100,006 orders through the coordinator in 1.6 s (each row routed to its shard by hash(customer_id))
+  coordinator layout:
+  partition          bound                                     lives_on
+  orders_sharded_p0  FOR VALUES WITH (modulus 4, remainder 0)  shard1  
+  orders_sharded_p1  FOR VALUES WITH (modulus 4, remainder 1)  shard2  
+  orders_sharded_p2  FOR VALUES WITH (modulus 4, remainder 2)  shard1  
+  orders_sharded_p3  FOR VALUES WITH (modulus 4, remainder 3)  shard2  
+
+==============================================================================
+S2  Distribution and skew
+==============================================================================
+  shard1 (port 5450): 52,696 orders, database size 14 MB
+  shard2 (port 5451): 47,310 orders, database size 14 MB
+  the five largest customers and where they live:
+  customer_id  orders  pct_of_all  partition        
+  1            4744    4.74        orders_sharded_p0
+  2            1514    1.51        orders_sharded_p2
+  3            1035    1.03        orders_sharded_p1
+  7            856     0.86        orders_sharded_p3
+  8            737     0.74        orders_sharded_p1
+
+==============================================================================
+S3  Single-shard query: customer history (shard key in WHERE)
+==============================================================================
+  Sort
+    Output: orders_sharded.order_number, orders_sharded.order_date, orders_sharded.status, orders_sharded.total_amount
+    Sort Key: orders_sharded.order_date DESC
+    ->  Foreign Scan on stitchline.orders_sharded_p2 orders_sharded
+          Output: orders_sharded.order_number, orders_sharded.order_date, orders_sharded.status, orders_sharded.total_amount
+          Remote SQL: SELECT order_number, order_date, status, total_amount FROM shard.orders_p2 WHERE ((customer_id = 94))
+  → 109 rows from ONE shard in 3.4 ms; the WHERE and ORDER BY ran on the shard
+
+==============================================================================
+S4  Scatter-gather: order counts and revenue by status across all shards
+==============================================================================
+  Finalize GroupAggregate
+    Output: orders_sharded.status, count(*), sum(orders_sharded.total_amount)
+    Group Key: orders_sharded.status
+    ->  Sort
+          Output: orders_sharded.status, (PARTIAL count(*)), (PARTIAL sum(orders_sharded.total_amount))
+          Sort Key: orders_sharded.status
+          ->  Append
+                ->  Partial HashAggregate
+                      Output: orders_sharded.status, PARTIAL count(*), PARTIAL sum(orders_sharded.total_amount)
+                      Group Key: orders_sharded.status
+                      ->  Foreign Scan on stitchline.orders_sharded_p0 orders_sharded
+                            Output: orders_sharded.status, orders_sharded.total_amount
+                            Remote SQL: SELECT status, total_amount FROM shard.orders_p0
+                ->  Partial HashAggregate
+                      Output: orders_sharded_1.status, PARTIAL count(*), PARTIAL sum(orders_sharded_1.total_amount)
+                      Group Key: orders_sharded_1.status
+                      ->  Foreign Scan on stitchline.orders_sharded_p1 orders_sharded_1
+                            Output: orders_sharded_1.status, orders_sharded_1.total_amount
+                            Remote SQL: SELECT status, total_amount FROM shard.orders_p1
+                ->  Partial HashAggregate
+                      Output: orders_sharded_2.status, PARTIAL count(*), PARTIAL sum(orders_sharded_2.total_amount)
+                      Group Key: orders_sharded_2.status
+                      ->  Foreign Scan on stitchline.orders_sharded_p2 orders_sharded_2
+                            Output: orders_sharded_2.status, orders_sharded_2.total_amount
+                            Remote SQL: SELECT status, total_amount FROM shard.orders_p2
+                ->  Partial HashAggregate
+                      Output: orders_sharded_3.status, PARTIAL count(*), PARTIAL sum(orders_sharded_3.total_amount)
+                      Group Key: orders_sharded_3.status
+                      ->  Foreign Scan on stitchline.orders_sharded_p3 orders_sharded_3
+                            Output: orders_sharded_3.status, orders_sharded_3.total_amount
+                            Remote SQL: SELECT status, total_amount FROM shard.orders_p3
+  status      orders  revenue     
+  delivered   96510   368209413.00
+  cancelled   2911    None        
+  ready       225     1085338.60  
+  embroidery  158     806072.30   
+  sewing      108     531517.80   
+  cutting     75      403852.45   
+  received    19      111500.10   
+  sharded: 170 ms   single server: 78 ms
+  → PostgreSQL 16's postgres_fdw cannot push a PARTIAL aggregate to a shard: each shard
+    ships its (status, total) rows and the coordinator aggregates per partition, then merges.
+
+==============================================================================
+S4b Grouping BY THE SHARD KEY: the whole aggregate runs on the shards
+==============================================================================
+  Append
+    ->  Async Foreign Scan
+          Output: orders_sharded.customer_id, (count(*)), (sum(orders_sharded.total_amount))
+          Relations: Aggregate on (stitchline.orders_sharded_p0 orders_sharded)
+          Remote SQL: SELECT customer_id, count(*), sum(total_amount) FROM shard.orders_p0 GROUP BY 1
+    ->  Async Foreign Scan
+          Output: orders_sharded_1.customer_id, (count(*)), (sum(orders_sharded_1.total_amount))
+          Relations: Aggregate on (stitchline.orders_sharded_p1 orders_sharded_1)
+          Remote SQL: SELECT customer_id, count(*), sum(total_amount) FROM shard.orders_p1 GROUP BY 1
+    ->  Async Foreign Scan
+          Output: orders_sharded_2.customer_id, (count(*)), (sum(orders_sharded_2.total_amount))
+          Relations: Aggregate on (stitchline.orders_sharded_p2 orders_sharded_2)
+          Remote SQL: SELECT customer_id, count(*), sum(total_amount) FROM shard.orders_p2 GROUP BY 1
+    ->  Async Foreign Scan
+          Output: orders_sharded_3.customer_id, (count(*)), (sum(orders_sharded_3.total_amount))
+          Relations: Aggregate on (stitchline.orders_sharded_p3 orders_sharded_3)
+          Remote SQL: SELECT customer_id, count(*), sum(total_amount) FROM shard.orders_p3 GROUP BY 1
+  → every customer lives on exactly one shard, so each shard can finish its own groups:
+    'Remote SQL ... GROUP BY' — only one row per customer crosses the network
+
+==============================================================================
+S5  Query WITHOUT the shard key: find one order by its number
+==============================================================================
+  Append
+    ->  Async Foreign Scan on orders_sharded_p0 orders_sharded_1
+    ->  Async Foreign Scan on orders_sharded_p1 orders_sharded_2
+    ->  Async Foreign Scan on orders_sharded_p2 orders_sharded_3
+    ->  Async Foreign Scan on orders_sharded_p3 orders_sharded_4
+  → every shard must be asked (and order_number has no index on the shards)
+  → uniqueness of order_number across shards can NOT be enforced by the database:
+    each shard only knows its own rows, so a global UNIQUE constraint is impossible here
+
+==============================================================================
+S6  Cross-shard write: move a customer's order between shards with TWO-PHASE COMMIT
+==============================================================================
+  order 1 must move from shard1 to shard2 (e.g. after re-sharding). Both writes must happen, or neither.
+  phase 1: both shards PREPARED (each has promised it can commit)
+  -- coordinator crashes here, before sending COMMIT PREPARED --
+  shard1: pg_prepared_xacts → ['move_order_1_shard1'] (survived the session ending)
+  shard2: pg_prepared_xacts → ['move_order_1_shard2'] (survived the session ending)
+  shard1: another session tries to touch order 1 → ERROR canceling statement due to lock timeout
+          (the prepared transaction still holds its locks: 2PC BLOCKS until someone decides)
+  phase 2: COMMIT PREPARED on both → order 1 on shard1: 0, on shard2: 1  (moved exactly once)
+  note: postgres_fdw on its own does NOT use 2PC; a crash between the two remote commits
+        could leave one shard committed and the other not

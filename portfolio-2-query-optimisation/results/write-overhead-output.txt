@@ -1,0 +1,54 @@
+SET
+Timing is on.
+=== WITH the three extra sales_order indexes ===
+BEGIN
+Time: 2.700 ms
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Insert on sales_order (actual time=51.749..51.750 rows=0 loops=1)
+   ->  Function Scan on generate_series g (actual time=0.558..4.110 rows=5000 loops=1)
+ Planning Time: 0.306 ms
+ Trigger for constraint sales_order_customer_id_fkey: time=118.515 calls=5000
+ Trigger for constraint sales_order_taken_by_fkey: time=31.200 calls=5000
+ Execution Time: 202.386 ms
+(6 rows)
+
+Time: 207.477 ms
+ROLLBACK
+Time: 1.505 ms
+=== WITHOUT them (dropped inside the transaction, then restored by ROLLBACK) ===
+BEGIN
+Time: 1.232 ms
+DROP INDEX
+Time: 2.974 ms
+DROP INDEX
+Time: 1.620 ms
+DROP INDEX
+Time: 2.193 ms
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Insert on sales_order (actual time=26.067..26.068 rows=0 loops=1)
+   ->  Function Scan on generate_series g (actual time=0.348..3.339 rows=5000 loops=1)
+ Planning Time: 0.066 ms
+ Trigger for constraint sales_order_customer_id_fkey: time=123.552 calls=5000
+ Trigger for constraint sales_order_taken_by_fkey: time=32.128 calls=5000
+ Execution Time: 182.670 ms
+(6 rows)
+
+Time: 185.137 ms
+ROLLBACK
+Time: 1.401 ms
+=== Index sizes ===
+            index_name            |        table_name         |  size   
+----------------------------------+---------------------------+---------
+ idx_stage_history_order_time     | order_stage_history       | 18 MB
+ idx_sales_order_customer_date    | sales_order               | 3544 kB
+ idx_payment_invoice              | payment                   | 2912 kB
+ idx_stock_movement_material_time | stock_movement            | 2360 kB
+ idx_sales_order_date             | sales_order               | 1064 kB
+ idx_sales_order_open_due         | sales_order               | 328 kB
+ idx_invoice_outstanding          | invoice                   | 160 kB
+ idx_mv_monthly_sales             | mv_monthly_category_sales | 40 kB
+(8 rows)
+
+Time: 9.682 ms

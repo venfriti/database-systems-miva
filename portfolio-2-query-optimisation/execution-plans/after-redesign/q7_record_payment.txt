@@ -1,0 +1,26 @@
+-- Query : q7_record_payment
+-- Phase : after-redesign
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 4.555 ms | median 5.185 ms | max 6.290 ms
+-- Planning time   median 0.209 ms
+
+-- WRITE
+-- Q7  Record a payment (write path)
+-- Business use: accounts records a part-payment. The prevent_overpayment
+-- trigger sums existing payments for the invoice before allowing it.
+-- Run inside BEGIN ... ROLLBACK so the data is not changed.
+INSERT INTO payment (invoice_id, amount, method, received_by)
+VALUES (97084, 100.00, 'bank_transfer', 5)
+
+-- Plan of the last run:
+Insert on payment  (cost=0.00..0.01 rows=0 width=0) (actual time=0.600..0.600 rows=0 loops=1)
+  Buffers: shared hit=69
+  ->  Result  (cost=0.00..0.01 rows=1 width=202) (actual time=0.098..0.099 rows=1 loops=1)
+        Buffers: shared hit=10
+Planning:
+  Buffers: shared hit=9
+Planning Time: 0.159 ms
+Trigger for constraint payment_invoice_id_fkey: time=1.393 calls=1
+Trigger for constraint payment_received_by_fkey: time=0.585 calls=1
+Trigger sync_amount_paid: time=1.944 calls=1
+Execution Time: 4.555 ms

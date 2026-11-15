@@ -1,0 +1,33 @@
+-- Query : q5b_stuck_orders_not_exists
+-- Phase : after-indexes
+-- Runs  : 5 (after 1 warm-up)
+-- Execution time  min 0.861 ms | median 0.990 ms | max 1.695 ms
+-- Planning time   median 3.502 ms
+
+-- Q5b Stuck orders — same question rewritten with NOT EXISTS
+-- Logically equivalent to Q5a. The planner can turn NOT EXISTS into an
+-- anti-join, so the history table is scanned once instead of once per order.
+SELECT o.order_number,
+       o.status,
+       o.due_date
+FROM sales_order o
+WHERE o.status IN ('received', 'cutting', 'sewing', 'embroidery', 'ready')
+  AND NOT EXISTS (SELECT 1
+                  FROM order_stage_history h
+                  WHERE h.order_id = o.order_id
+                    AND h.changed_at >= TIMESTAMPTZ '2026-11-08 00:00')
+ORDER BY o.due_date
+
+-- Plan of the last run:
+Nested Loop Anti Join  (cost=0.57..2497.85 rows=617 width=27) (actual time=0.055..0.789 rows=339 loops=1)
+  Buffers: shared hit=1988
+  ->  Index Scan using idx_sales_order_open_due on sales_order o  (cost=0.15..28.55 rows=623 width=31) (actual time=0.028..0.140 rows=585 loops=1)
+        Buffers: shared hit=232
+  ->  Index Only Scan using idx_stage_history_order_time on order_stage_history h  (cost=0.42..3.96 rows=1 width=4) (actual time=0.001..0.001 rows=0 loops=585)
+        Index Cond: ((order_id = o.order_id) AND (changed_at >= '2026-11-08 00:00:00+01'::timestamp with time zone))
+        Heap Fetches: 0
+        Buffers: shared hit=1756
+Planning:
+  Buffers: shared hit=366
+Planning Time: 2.996 ms
+Execution Time: 0.861 ms
