@@ -8,6 +8,7 @@ Progress log for the portfolio. Newest entries first.
 - Outputs added: `test-results/`, P2 `execution-plans/` and `results/`, and screenshots for all five portfolios
 - Measured results written into the Portfolio 2–5 READMEs
 - Portfolio 5: `cluster.sh` keeps 256 MB of WAL (`wal_keep_size`) and `replication_demo.py` checkpoints the new primary before `pg_rewind`, so the old primary rejoins reliably after failover
+- AI use declaration added in `docs/`
 
 ## 2026-11-14 — Portfolio 5: Distributed and Cloud Database Exercise
 
